@@ -3,11 +3,12 @@ from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 from SocketServer import ThreadingMixIn
 import os
 import re
+from cStringIO import StringIO
 
 
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
-UPLOAD_FOLDER = "folder"
+UPLOAD_FOLDER = "/tmp"
 FORM_URL = "/"
 
 def main( ):
@@ -35,11 +36,10 @@ class UploadHandler(BaseHTTPRequestHandler):
           <form method="post" name="fileUpload" action="%s" 
           enctype="multipart/form-data">
             <input type="file" name="%s" multiple="true"/><br />
-            <input type="text" name="%s" /><br />
             <button type="submit" name="%s" value="true">Upload</button>
           </form>
         </body>
-      </html>""" % ( FORM_URL, UPLOAD_FILE, UPLOAD_FOLDER, UPLOAD_BUTTON ))
+      </html>""" % ( FORM_URL, UPLOAD_FILE, UPLOAD_BUTTON ))
 
   def do_POST( self ):
     """
@@ -50,31 +50,32 @@ class UploadHandler(BaseHTTPRequestHandler):
     self.send_header( 'Content-Type', 'text/html' )
     self.end_headers( )
     byteCount = 0
-    self.tmpFile = open('/home/mcgrew/garbage', 'wb')
 
     #get the content of the separator line
-    content_length = int( self.headers[ 'Content-Length' ])
+    self.remaining_content = int( self.headers[ 'Content-Length' ])
     token = self.rfile.readline( )
-    content_length -= len(token)
+    self.remaining_content -= len(token)
     token = token.strip( )
     print "Token: " + token
 
     # read the post request
-    buf = ''
+    self.buf = ''
+    self.postdict = dict( )
     self.wfile.write( "<!DOCTYPE html><html><head></head><body>" )
-    while content_length > 0 or len(buf):
-      name, filename, value, content_length, buf = \
-        self._parse_post_item( token, content_length, buf )
-      if filename:
-        print( "Saving file %s" % filename )
-        f = open( '/tmp/%s'% filename, 'wb' )
-        f.write( value )
-        f.close( )
-        self.wfile.write( "<p>Saved file %s</p>" % filename )
+    while self.remaining_content > 0 or len(self.buf):
+      name, value_buffer = self._parse_post_item( token )
+      if type( value_buffer ) == file:
+        print( "Saved file %s" % value_buffer.name )
+        self.wfile.write( "<p>Saved file %s</p>" % value_buffer.name )
+        self.postdict[ name ] = value_buffer.name
+      else:
+        self.postdict[ name ] = value_buffer.getvalue( )
+      value_buffer.close( )
+    print( self.postdict )
     self.wfile.write( "</body>" )
     self.wfile.close( )
 
-  def _parse_post_item( self, token, content_length, buf ):
+  def _parse_post_item( self, token ):
     """
     Parses out a single item from a post request.
 
@@ -91,34 +92,36 @@ class UploadHandler(BaseHTTPRequestHandler):
     """
     name = None
     filename = None
-    buf, content_length, line = self._next_line( buf, content_length )
+    line = self._next_line( )
     nameheader = re.search( 
       'Content-Disposition: form-data; name="(.*?)"', line )
     if nameheader:
       name = nameheader.group(1)
-    if name == UPLOAD_FILE:
-      fileheader = re.search( 'filename="(.*?)"', line )
-      if fileheader:
-        filename = fileheader.group( 1 )
+    fileheader = re.search( 'filename="(.*?)"', line )
+    if fileheader:
+      filename = fileheader.group( 1 )
 
     while len(line.strip()):
-      buf, content_length, line = self._next_line( buf, content_length )
-      print( line )
+      line = self._next_line( )
 
-    value = ''
+    if filename:
+      value_buffer = open( '%s/%s' % ( UPLOAD_FOLDER, filename), 'wb' )
+    else:
+      value_buffer = StringIO( )
     prev_line = False
     while not line.startswith( token ):
-      buf, content_length, line = self._next_line( buf, content_length )
+      line = self._next_line( )
       if line.startswith( token ):
-        value += prev_line[:-1] # strip the extra ^M from the end
+        value_buffer.write( prev_line[:-1] )# strip the extra ^M from the end
         break
       if not ( prev_line is False ):
-        value += prev_line + '\n' 
+        value_buffer.write( prev_line )
+        value_buffer.write( '\n' )
       prev_line = line
 
-    return ( name, filename, value, content_length, buf )
+    return ( name, value_buffer )
 
-  def _next_line( self, buf, content_length ):
+  def _next_line( self ):
     """
     Reads the next line of text from the post buffer and returns it.
     :Parameters:
@@ -126,12 +129,13 @@ class UploadHandler(BaseHTTPRequestHandler):
     rtype: 
     return: 
     """
-    while content_length > 0 and not '\n' in buf :
-      buf += self.rfile.read( 8192 if content_length > 8192 else content_length)
-      content_length -= 8192
-    line = buf[ :buf.find('\n') if '\n' in buf else len(buf)] 
-    buf = buf[len(line)+1:]
-    return ( buf, content_length, line )
+    while self.remaining_content > 0 and not '\n' in self.buf :
+      self.buf += self.rfile.read( 
+        8192 if self.remaining_content > 8192 else self.remaining_content )
+      self.remaining_content -= 8192
+    line = self.buf[ :self.buf.find('\n') if '\n' in self.buf else len(self.buf)] 
+    self.buf = self.buf[len(line)+1:]
+    return line
 
 
 if __name__ == "__main__":
