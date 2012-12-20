@@ -25,6 +25,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     """
     Listens for a GET request and returns an upload form
     """
+#    print( self.headers )
     self.send_response( 200 )
     self.send_header( 'Content-Type', 'text/html' )
     self.end_headers( )
@@ -61,9 +62,17 @@ class UploadHandler(BaseHTTPRequestHandler):
       name, value_buffer = self._parse_post_item( token )
       if type( value_buffer ) == file:
         print( "Saved file %s" % value_buffer.name )
-        self.postdict[ name ] = value_buffer.name
+        value = value_buffer.name
       else:
-        self.postdict[ name ] = value_buffer.getvalue( )
+        value = value_buffer.getvalue( )
+
+      if self.postdict.has_key( name ):
+        if type(self.postdict[ name ]) is str:
+          self.postdict[ name ] = [ self.postdict[ name ], value ]
+        else:
+          self.postdict[ name ].append( value )
+      else:
+        self.postdict[ name ] = value
       value_buffer.close( )
     print( self.postdict )
     self.send_response( 200 )
