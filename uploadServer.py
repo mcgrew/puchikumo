@@ -1,6 +1,6 @@
 #!/usr/bin/env python2
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
-from SocketServer import ThreadingMixIn
+from SocketServer import ForkingMixIn
 import os
 import re
 from cStringIO import StringIO
@@ -13,10 +13,10 @@ FORM_URL = "/"
 
 def main( ):
   server_address = ('',8000)
-  httpd = HTTPServer( server_address, UploadHandler )
+  httpd = ThreadedServer( server_address, UploadHandler )
   httpd.serve_forever( )
 
-class ThreadedServer(HTTPServer,ThreadingMixIn):
+class ThreadedServer(ForkingMixIn, HTTPServer):
   pass
 
 class UploadHandler(BaseHTTPRequestHandler):
@@ -45,13 +45,9 @@ class UploadHandler(BaseHTTPRequestHandler):
     """
     Reads a post request from a web browser and parses the variables.
     """
-    self.rfile._sock.settimeout( 30 )
-    self.send_response( 200 )
-    self.send_header( 'Content-Type', 'text/html' )
-    self.end_headers( )
-    byteCount = 0
 
     #get the content of the separator line
+    self.rfile._sock.settimeout( 30 )
     self.remaining_content = int( self.headers[ 'Content-Length' ])
     token = self.rfile.readline( )
     self.remaining_content -= len(token)
@@ -61,17 +57,20 @@ class UploadHandler(BaseHTTPRequestHandler):
     # read the post request
     self.buf = ''
     self.postdict = dict( )
-    self.wfile.write( "<!DOCTYPE html><html><head></head><body>" )
     while self.remaining_content > 0 or len(self.buf):
       name, value_buffer = self._parse_post_item( token )
       if type( value_buffer ) == file:
         print( "Saved file %s" % value_buffer.name )
-        self.wfile.write( "<p>Saved file %s</p>" % value_buffer.name )
         self.postdict[ name ] = value_buffer.name
       else:
         self.postdict[ name ] = value_buffer.getvalue( )
       value_buffer.close( )
     print( self.postdict )
+    self.send_response( 200 )
+    self.send_header( 'Content-Type', 'text/html' )
+    self.end_headers( )
+    self.wfile.write( "<!DOCTYPE html><html><head></head><body>" )
+    self.wfile.write( repr( self.postdict ))
     self.wfile.write( "</body>" )
     self.wfile.close( )
 
@@ -100,6 +99,8 @@ class UploadHandler(BaseHTTPRequestHandler):
     fileheader = re.search( 'filename="(.*?)"', line )
     if fileheader:
       filename = fileheader.group( 1 )
+      if '/' in filename:
+        filename = filename[ filename.rfind( '/'): ]
 
     while len(line.strip()):
       line = self._next_line( )
