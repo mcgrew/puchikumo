@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 """
   Copyright 2013 Thomas McGrew <tjmcgrew@gmail.com>
 
@@ -27,21 +27,22 @@ UPLOAD_FILE = "upload"
 UPLOAD_FOLDER = "/tmp"
 FORM_URL = "/"
 
-def main( ):
-  server_address = ('',8000)
-  httpd = ThreadedServer( server_address, UploadHandler )
-  httpd.serve_forever( )
-
-class ThreadedServer(ForkingMixIn, HTTPServer):
+class ForkingServer(ForkingMixIn, HTTPServer):
   pass
 
 class UploadHandler(BaseHTTPRequestHandler):
+  upload_button = UPLOAD_BUTTON
+  upload_file = UPLOAD_FILE
+  upload_folder = UPLOAD_FOLDER
+  form_url = FORM_URL
 
   def do_GET( self ):
     """
     Listens for a GET request and returns an upload form
     """
-#    print( self.headers )
+    self.rfile._sock.settimeout( 30 )
+    self._preprocess_get( )
+    self._parse_cookies( )
     self.send_response( 200 )
     self.send_header( 'Content-Type', 'text/html' )
     self.end_headers( )
@@ -56,16 +57,30 @@ class UploadHandler(BaseHTTPRequestHandler):
             <button type="submit" name="%s" value="true">Upload</button>
           </form>
         </body>
-      </html>""" % ( FORM_URL, UPLOAD_FILE, UPLOAD_BUTTON ))
+      </html>""" % ( self.form_url, self.upload_file, self.upload_button ))
 
   def do_POST( self ):
     """
     Reads a post request from a web browser and parses the variables.
     """
-
-    #get the content of the separator line
     self.rfile._sock.settimeout( 30 )
     self.remaining_content = int( self.headers[ 'Content-Length' ])
+    self._parse_cookies( )
+    self._preprocess_post( )
+    self._read_post_data( )
+    self._send_response( )
+
+  def _parse_cookies( self ):
+    # parse the cookies
+    if self.headers.has_key( 'Cookie' ):
+      cookie_pieces = re.split( "(.*?)=(.*?)(:?; |$)", self.headers['Cookie'] )
+      self.cookies = dict( zip( cookie_pieces[1::4], cookie_pieces[2::4]))
+    else:
+      self.cookies = None
+    return self.cookies
+
+  def _read_post_data( self ):
+    # read the separator token.
     token = self.rfile.readline( )
     self.remaining_content -= len(token)
     token = token.strip( )
@@ -76,7 +91,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     self.postdict = dict( )
     while self.remaining_content > 0 or len(self.buf):
       name, value_buffer = self._parse_post_item( token )
-      if type( value_buffer ) == file:
+      if type( value_buffer ) is file:
         print( "Saved file %s" % value_buffer.name )
         value = value_buffer.name
       else:
@@ -90,7 +105,19 @@ class UploadHandler(BaseHTTPRequestHandler):
       else:
         self.postdict[ name ] = value
       value_buffer.close( )
-    print( self.postdict )
+      if type( value_buffer ) is file:
+        self._postprocess_upload( value )
+
+  def _postprocess_upload( self, filename ):
+    pass
+
+  def _preprocess_get( self ):
+    pass
+
+  def _preprocess_post( self ):
+    pass
+
+  def _send_response( self ):
     self.send_response( 200 )
     self.send_header( 'Content-Type', 'text/html' )
     self.end_headers( )
@@ -99,6 +126,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     self.wfile.write( "</body>" )
     self.wfile.close( )
 
+
   def _parse_post_item( self, token ):
     """
     Parses out a single item from a post request.
@@ -106,13 +134,11 @@ class UploadHandler(BaseHTTPRequestHandler):
     :Parameters:
       token : string
         The separator token for each post variable
-      content_length
-        The remaining content in the stream
 
     rtype: tuple
-    return: A tuple containing the name of the variable, filename if applicable,
-      value of the variable (or the temporary filename if it is a file), and
-      the remaining content length in the stream.
+    return: A tuple containing the name of the variable and the buffer 
+    containing it's value. This could either be a file object or a StringIO
+    object.
     """
     name = None
     filename = None
@@ -124,14 +150,14 @@ class UploadHandler(BaseHTTPRequestHandler):
     fileheader = re.search( 'filename="(.*?)"', line )
     if fileheader:
       filename = fileheader.group( 1 )
-      if '/' in filename:
-        filename = filename[ filename.rfind( '/'): ]
+      if os.sep in filename:
+        filename = filename[ filename.rfind( os.sep ): ]
 
     while len(line.strip()):
       line = self._next_line( )
 
     if filename:
-      value_buffer = open( '%s/%s' % ( UPLOAD_FOLDER, filename), 'wb' )
+      value_buffer = open( '%s/%s' % ( self.upload_folder, filename), 'wb' )
     else:
       value_buffer = StringIO( )
     prev_line = False
@@ -150,10 +176,9 @@ class UploadHandler(BaseHTTPRequestHandler):
   def _next_line( self ):
     """
     Reads the next line of text from the post buffer and returns it.
-    :Parameters:
 
-    rtype: 
-    return: 
+    rtype: string
+    return: The next line in the post data buffer
     """
     while self.remaining_content > 0 and not '\n' in self.buf :
       self.buf += self.rfile.read( 
@@ -163,6 +188,10 @@ class UploadHandler(BaseHTTPRequestHandler):
     self.buf = self.buf[len(line)+1:]
     return line
 
+def main( handler=UploadHandler, server_address='', server_port=8000 ):
+  httpd = ForkingServer(( server_address, server_port ), handler )
+  httpd.serve_forever( )
 
 if __name__ == "__main__":
   main( )
+
