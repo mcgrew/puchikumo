@@ -25,7 +25,7 @@ from cStringIO import StringIO
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
 UPLOAD_FOLDER = "/tmp"
-FORM_URL = "/"
+FORM_URL = "/upload"
 
 class ForkingServer(ForkingMixIn, HTTPServer):
   pass
@@ -41,23 +41,9 @@ class UploadHandler(BaseHTTPRequestHandler):
     Listens for a GET request and returns an upload form
     """
     self.rfile._sock.settimeout( 30 )
-    self._preprocess_get( )
     self._parse_cookies( )
-    self.send_response( 200 )
-    self.send_header( 'Content-Type', 'text/html' )
-    self.end_headers( )
-    self.wfile.write( """<!DOCTYPE html>
-      <html>
-        <head>
-        </head>
-        <body>
-          <form method="post" name="fileUpload" action="%s" 
-          enctype="multipart/form-data">
-            <input type="file" name="%s" multiple="true"/><br />
-            <button type="submit" name="%s" value="true">Upload</button>
-          </form>
-        </body>
-      </html>""" % ( self.form_url, self.upload_file, self.upload_button ))
+    self._preprocess_get( )
+    self._send_get_response( )
 
   def do_POST( self ):
     """
@@ -117,7 +103,25 @@ class UploadHandler(BaseHTTPRequestHandler):
   def _preprocess_post( self ):
     pass
 
-  def _send_response( self ):
+  def _send_get_response( self ):
+    self.send_response( 200 )
+    self.send_header( 'Content-Type', 'text/html' )
+    self.end_headers( )
+    self.wfile.write( """<!DOCTYPE html>
+      <html>
+        <head>
+        </head>
+        <body>
+          <form method="post" name="fileUpload" action="%s" 
+          enctype="multipart/form-data">
+            <input type="file" name="%s" multiple="true"/><br />
+            <button type="submit" name="%s" value="true">Upload</button>
+          </form>
+        </body>
+      </html>""" % ( self.form_url, self.upload_file, self.upload_button ))
+
+
+  def _send_post_response( self ):
     self.send_response( 200 )
     self.send_header( 'Content-Type', 'text/html' )
     self.end_headers( )
@@ -157,6 +161,8 @@ class UploadHandler(BaseHTTPRequestHandler):
       line = self._next_line( )
 
     if filename:
+      if not os.path.exists( self.upload_folder ):
+        os.mkdir( self.upload_folder )
       value_buffer = open( '%s/%s' % ( self.upload_folder, filename), 'wb' )
     else:
       value_buffer = StringIO( )
