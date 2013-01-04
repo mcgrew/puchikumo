@@ -20,12 +20,11 @@ from SocketServer import ForkingMixIn
 import os
 import re
 from cStringIO import StringIO
+from optparse import OptionParser
 
 
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
-UPLOAD_FOLDER = "/tmp"
-FORM_URL = "/upload"
 
 class ForkingServer(ForkingMixIn, HTTPServer):
   pass
@@ -33,8 +32,6 @@ class ForkingServer(ForkingMixIn, HTTPServer):
 class UploadHandler(BaseHTTPRequestHandler):
   upload_button = UPLOAD_BUTTON
   upload_file = UPLOAD_FILE
-  upload_folder = UPLOAD_FOLDER
-  form_url = FORM_URL
 
   def do_GET( self ):
     """
@@ -54,7 +51,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     self._parse_cookies( )
     self._preprocess_post( )
     self._read_post_data( )
-    self._send_response( )
+    self._send_post_response( )
 
   def _parse_cookies( self ):
     # parse the cookies
@@ -70,7 +67,6 @@ class UploadHandler(BaseHTTPRequestHandler):
     token = self.rfile.readline( )
     self.remaining_content -= len(token)
     token = token.strip( )
-    print "Token: " + token
 
     # read the post request
     self.buf = ''
@@ -78,7 +74,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     while self.remaining_content > 0 or len(self.buf):
       name, value_buffer = self._parse_post_item( token )
       if type( value_buffer ) is file:
-        print( "Saved file %s" % value_buffer.name )
+        self.log_message( "Saved file %s", value_buffer.name )
         value = value_buffer.name
       else:
         value = value_buffer.getvalue( )
@@ -118,7 +114,7 @@ class UploadHandler(BaseHTTPRequestHandler):
             <button type="submit" name="%s" value="true">Upload</button>
           </form>
         </body>
-      </html>""" % ( self.form_url, self.upload_file, self.upload_button ))
+      </html>""" % ( OPTIONS.url, self.upload_file, self.upload_button ))
 
 
   def _send_post_response( self ):
@@ -161,9 +157,9 @@ class UploadHandler(BaseHTTPRequestHandler):
       line = self._next_line( )
 
     if filename:
-      if not os.path.exists( self.upload_folder ):
-        os.mkdir( self.upload_folder )
-      value_buffer = open( '%s/%s' % ( self.upload_folder, filename), 'wb' )
+      if not os.path.exists( OPTIONS.upload_folder ):
+        os.mkdir( OPTIONS.upload_folder )
+      value_buffer = open( '%s/%s' % ( OPTIONS.upload_folder, filename), 'wb' )
     else:
       value_buffer = StringIO( )
     prev_line = False
@@ -194,10 +190,25 @@ class UploadHandler(BaseHTTPRequestHandler):
     self.buf = self.buf[len(line)+1:]
     return line
 
-def main( handler=UploadHandler, server_address='', server_port=8000 ):
-  httpd = ForkingServer(( server_address, server_port ), handler )
+def main( handler=UploadHandler ):
+  global OPTIONS
+  opts, args = optParser.parse_args( )
+  OPTIONS = opts
+  httpd = ForkingServer(( opts.address, opts.port ), handler )
   httpd.serve_forever( )
 
+optParser = OptionParser( version="%prog 0.2", usage="%prog [options]" )
+optParser.add_option( "-p", "--port",  dest="port", type="int", default=8000,
+  help="Specify the port for the server to listen on" )
+optParser.add_option( "-a", "--address", dest="address", default="",
+  help="The ip address for the server to listen on" )
+optParser.add_option( "-f", "--form-path", dest="url", default="/",
+  help="The path to the upload form on the server. Useful if the server is"
+       "behind a proxy" )
+optParser.add_option( "-u", "--upload-location", dest="upload_folder", 
+  default="/tmp", help="The location to store uploaded files" )
+
+
 if __name__ == "__main__":
-  main( )
+  main( ) 
 
