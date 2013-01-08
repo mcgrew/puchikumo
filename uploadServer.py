@@ -82,7 +82,7 @@ PROGRESS_HTML = """<!DOCTYPE html>
     jQuery.getJSON( '%s', function( data ) {
       if ( data.read ) {
         if ( data.read == data.total ) {
-          window.close( );
+          setTimeout( close, 3000 );
         }
         progressbar = jQuery( '#progressbar' );
         progressIndicator = jQuery( '#progressIndicator' );
@@ -347,11 +347,10 @@ class UploadHandler(BaseHTTPRequestHandler):
     while not line.startswith( token ):
       line = self._next_line( )
       if line.startswith( token ):
-        value_buffer.write( prev_line[:-1] )# strip the extra ^M from the end
+        value_buffer.write( prev_line[:-2] )# strip the "^M\n" from the end
         break
       if not ( prev_line is False ):
         value_buffer.write( prev_line )
-        value_buffer.write( '\n' )
       prev_line = line
     return ( name, value_buffer )
 
@@ -362,14 +361,15 @@ class UploadHandler(BaseHTTPRequestHandler):
     rtype: string
     return: The next line in the post data buffer
     """
-    while self.remaining_content > 0 and not '\n' in self.buf:
+    if self.remaining_content > 0 and len(self.buf) < OPTIONS.buf \
+      and not '\n' in self.buf:
       self.buf += self.rfile.read( 
         OPTIONS.buf if self.remaining_content > OPTIONS.buf else self.remaining_content )
       self.remaining_content -= OPTIONS.buf
       if OPTIONS.progress:
         self._update_progress( )
-    line = self.buf[ :self.buf.find('\n') if '\n' in self.buf else len(self.buf)] 
-    self.buf = self.buf[len(line)+1:]
+    line = self.buf[ :self.buf.find('\n')+1 if '\n' in self.buf else len(self.buf)] 
+    self.buf = self.buf[len(line):]
     # update the upload progress
     return line
 
