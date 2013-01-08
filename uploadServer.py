@@ -29,6 +29,80 @@ import string
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
 
+PROGRESS_HTML = """<!DOCTYPE html>
+<html>
+  <head>
+    <style type="text/css">
+      body {
+        padding: 0;
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+      }
+      #progress {
+        width: 400px;
+        height: 1.2em;
+        border: 1px solid black;
+        position: relative;
+        text-align: center;
+        overflow: hidden;
+      }
+      #progressbar {
+        width: 0;
+        height: 100%%;
+        background-color: #66ff66;
+        position: absolute;
+        top: 0;
+        left: 0;
+        z-index: -1;
+      }
+      #fileBox {
+        padding: 1em;
+      }
+      #progressIndicator {
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+
+<div id='progress'>
+  <div id='progressbar'>
+  </div>
+  <span id='progressIndicator'>0%%</span>
+</div>
+<div id='fileBox'>
+  <h3>Uploaded Files:</h3>
+  <span id='fileList'>
+  </span>
+</div>
+<script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js">
+</script>
+<script><!--
+  function updateProgress( ) {
+    jQuery.getJSON( '%s', function( data ) {
+      if ( data.read ) {
+        if ( data.read == data.total ) {
+          window.close( );
+        }
+        progressbar = jQuery( '#progressbar' );
+        progressIndicator = jQuery( '#progressIndicator' );
+        fileList = jQuery( '#fileList' );
+        progressbar.css( 'width', data.read / data.total * 400 );
+        progressIndicator.html( 
+          Math.round( data.read / data.total * 100 ) + "%%")
+        fileList.html( data.files.join( '<br />' ));
+        
+      }
+    });
+  }
+  $( function( ) {
+    setInterval( updateProgress, 2000 );
+  });
+  --></script>
+  </body>
+</html>
+"""
+
 class ForkingServer(ForkingMixIn, HTTPServer):
   pass
 
@@ -82,54 +156,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     self.send_response( 200 )
     self.send_header( "Content-Type", 'text/html' )
     self.end_headers( )
-    self.wfile.write( """
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style type="text/css">
-            body {
-              padding: 0;
-              margin: 0;
-            }
-            #progress {
-              width: 400px;
-              height: 25px;
-              border: 1px solid black;
-            }
-            #progressbar {
-              width: 0;
-              height: 100%%;
-              background-color: #88ff88;
-            }
-          </style>
-        </head>
-        <body>
-
-      <div id='progress'>
-        <div id='progressbar'>
-        </div>
-      </div>
-      <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js">
-      </script>
-      <script><!--
-        function updateProgress( ) {
-          jQuery.getJSON( '%s', function( data ) {
-            if ( data.read ) {
-              if ( data.read == data.total ) {
-                window.close( );
-              }
-              progressbar = jQuery( '#progressbar' );
-              progressbar.css( 'width', data.read / data.total * 400 );
-            }
-          });
-        }
-        $( function( ) {
-          setInterval( updateProgress, 2000 );
-        });
-        --></script>
-        </body>
-      </html>
-    """ % self.progress_url )
+    self.wfile.write( PROGRESS_HTML % self.progress_url )
 
   def do_POST( self ):
     """
@@ -355,7 +382,7 @@ class UploadHandler(BaseHTTPRequestHandler):
       os.sep.join([OPTIONS.upload_folder, "progress", 
         self.cookies[OPTIONS.progkey]]), 'w')
     progressfile.write( json.dumps( 
-      { 'files': self.postdict[ 'files' ], 
+      { 'files': [os.path.basename( x ) for x in self.postdict[ 'files' ]], 
         'read': (( self.content_length - self.remaining_content )
           if self.remaining_content > 0 else self.content_length ),
         'total': self.content_length }))
