@@ -192,6 +192,7 @@ class UploadHandler(BaseHTTPRequestHandler):
         self.log_message( "Saved file %s", value_buffer.name )
         value = value_buffer.name
         self.postdict['files'].append( value )
+        self._update_progress( )
       else:
         value = value_buffer.getvalue( )
 
@@ -339,19 +340,26 @@ class UploadHandler(BaseHTTPRequestHandler):
         OPTIONS.buf if self.remaining_content > OPTIONS.buf else self.remaining_content )
       self.remaining_content -= OPTIONS.buf
       if OPTIONS.progress:
-        progressfile = open( 
-          os.sep.join([OPTIONS.upload_folder, "progress", 
-            self.cookies[OPTIONS.progkey]]), 'w')
-        progressfile.write( json.dumps( 
-          { 'files': self.postdict[ 'files' ], 
-            'read': (( self.content_length - self.remaining_content )
-              if self.remaining_content > 0 else self.content_length ),
-            'total': self.content_length }))
-        progressfile.close( )
+        self._update_progress( )
     line = self.buf[ :self.buf.find('\n') if '\n' in self.buf else len(self.buf)] 
     self.buf = self.buf[len(line)+1:]
     # update the upload progress
     return line
+
+  def _update_progress( self ):
+    """
+    Adds uploaded files and current upload progress to a file for the JSON 
+    progress feed.
+    """
+    progressfile = open( 
+      os.sep.join([OPTIONS.upload_folder, "progress", 
+        self.cookies[OPTIONS.progkey]]), 'w')
+    progressfile.write( json.dumps( 
+      { 'files': self.postdict[ 'files' ], 
+        'read': (( self.content_length - self.remaining_content )
+          if self.remaining_content > 0 else self.content_length ),
+        'total': self.content_length }))
+    progressfile.close( )
 
 
 optParser = OptionParser( version="%prog 0.2", usage="%prog [options]" )
