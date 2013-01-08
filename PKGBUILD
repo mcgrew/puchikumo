@@ -5,7 +5,7 @@
 
 # Maintainer: Your Name <youremail@domain.com>
 pkgname=pipeline-upload-server
-pkgver=0.1.1
+pkgver=0.2
 pkgrel=2
 epoch=
 pkgdesc=""
@@ -26,7 +26,7 @@ install=
 changelog=
 source=(uploadServer.py uploadserver uploadServer.conf)
 noextract=()
-md5sums=('67e6a24ebd4b095c5abba70e6def454b'
+md5sums=('85ab04f608d12f9d3e528d44200fd765'
          '3b371fd885c77e7219433fc5e873bf95'
          '8d1526844eb7d7ae85771d95019ffc5a')
 
