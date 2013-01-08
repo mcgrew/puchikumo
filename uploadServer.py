@@ -363,14 +363,16 @@ class UploadHandler(BaseHTTPRequestHandler):
     rtype: string
     return: The next line in the post data buffer
     """
-    if self.remaining_content > 0 and len(self.buf) < OPTIONS.buf \
+    if self.remaining_content > 0 and len(self.buf) < OPTIONS.buf_size \
       and not '\n' in self.buf:
       self.buf += self.rfile.read( 
-        OPTIONS.buf if self.remaining_content > OPTIONS.buf else self.remaining_content )
+        OPTIONS.buf_size if self.remaining_content > OPTIONS.buf_size
+        else self.remaining_content )
       self.remaining_content -= OPTIONS.buf
       if OPTIONS.progress:
         self._update_progress( )
-    line = self.buf[ :self.buf.find('\n')+1 if '\n' in self.buf else len(self.buf)] 
+    line = self.buf[ :self.buf.find('\n')+1 
+      if '\n' in self.buf else len(self.buf)] 
     self.buf = self.buf[len(line):]
     # update the upload progress
     return line
@@ -394,7 +396,7 @@ class UploadHandler(BaseHTTPRequestHandler):
 optParser = OptionParser( version="%prog 0.2", usage="%prog [options]" )
 optParser.add_option( "-a", "--address", dest="address", default="",
   help="The ip address for the server to listen on" )
-optParser.add_option( "--buffer-size", dest="buf", type="int", default=8,
+optParser.add_option( "--buffer-size", dest="buf_size", type="int", default=8,
   help="Specify the buffer size for post request (in KB)." )
 optParser.add_option( "-f", "--form-path", dest="url", default="/",
   help="The path to the upload form on the server. Useful if the server is"
@@ -414,7 +416,7 @@ def main( handler=UploadHandler ):
   global OPTIONS
   opts, args = optParser.parse_args( )
   OPTIONS = opts
-  OPTIONS.buf *= 1024
+  OPTIONS.buf_size *= 1024
   httpd = ForkingServer(( opts.address, opts.port ), handler )
   httpd.serve_forever( )
 

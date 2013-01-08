@@ -16,8 +16,20 @@ case "$1" in
     if [ ! -z "$ADDRESS" ]; then
       opts="$opts -a $ADDRESS"
     fi;
+    if [ ! -z "$FORM_URL" ]; then
+      opts="$opts -f $FORM_URL"
+    fi;
+    if [ ! -z "$BUFFER_SIZE" ]; then
+      opts="$opts --buffer-size=$BUFFER_SIZE"
+    fi;
     if [ ! -z "$UPLOAD_FOLDER" ]; then
       opts="$opts -u $UPLOAD_FOLDER"
+    fi;
+    if [ "$ENABLE_PROGRESS" -eq "True" ]; then
+      opts="$opts --enable-progress"
+    fi;
+    if [ ! -z "$PROGRESS_KEY" ]; then
+      opts="$opts --progrss-key=$PROGRESS_KEY"
     fi;
 		# RUN
 		${daemon_name} ${opts} 2>> /var/log/uploadserver.log &
@@ -48,6 +60,7 @@ case "$1" in
 			stat_fail
 			exit 1
 		else
+      rm -f /var/run/$daemon_name.pid &> /dev/null
 			rm_daemon $daemon_name
 			stat_done
 		fi
