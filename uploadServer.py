@@ -21,6 +21,9 @@ import os
 import re
 from cStringIO import StringIO
 from optparse import OptionParser
+import json
+import random
+import string
 
 
 UPLOAD_BUTTON = "uploadButton"
@@ -40,29 +43,141 @@ class UploadHandler(BaseHTTPRequestHandler):
     self.rfile._sock.settimeout( 30 )
     self._parse_cookies( )
     self._preprocess_get( )
+    if OPTIONS.progress:
+      self.progress_url = OPTIONS.url
+      if self.progress_url.endswith( '/' ):
+        self.progress_url = self.progress_url[ :-1 ]
+      self.progress_url += '/progress'
+      if self.path ==  self.progress_url:
+        self._progress( )
+        return
+      if self.path == self.progress_url + ".html":
+        self._get_progress_page( )
+        return
     self._send_get_response( )
+
+  def _progress( self ):
+    if not OPTIONS.progress:
+      self.send_error( 403 )
+      return
+    progressfilename = \
+      os.sep.join([OPTIONS.upload_folder, "progress", 
+        self.cookies[OPTIONS.progkey]])
+    if not os.path.exists( progressfilename ):
+      self.send_error( 404 )
+      return
+
+    self.send_response( 200 )
+    self.send_header( 'Content-Type', 'application/json' )
+#    self.send_header( 'Content-Length', 
+#      int( os.stat( progressfilename ).stat_size ))
+    self.end_headers( )
+    progressfile = open( progressfilename, 'r' )
+    self.wfile.write( progressfile.read( ))
+    progressfile.close( )
+    self.wfile.close( )
+    
+
+  def _get_progress_page( self ):
+    self.send_response( 200 )
+    self.send_header( "Content-Type", 'text/html' )
+    self.end_headers( )
+    self.wfile.write( """
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style type="text/css">
+            body {
+              padding: 0;
+              margin: 0;
+            }
+            #progress {
+              width: 400px;
+              height: 25px;
+              border: 1px solid black;
+            }
+            #progressbar {
+              width: 0;
+              height: 100%%;
+              background-color: #88ff88;
+            }
+          </style>
+        </head>
+        <body>
+
+      <div id='progress'>
+        <div id='progressbar'>
+        </div>
+      </div>
+      <script src="//ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js">
+      </script>
+      <script><!--
+        function updateProgress( ) {
+          jQuery.getJSON( '%s', function( data ) {
+            if ( data.read ) {
+              if ( data.read == data.total ) {
+                window.close( );
+              }
+              progressbar = jQuery( '#progressbar' );
+              progressbar.css( 'width', data.read / data.total * 400 );
+            }
+          });
+        }
+        $( function( ) {
+          setInterval( updateProgress, 2000 );
+        });
+        --></script>
+        </body>
+      </html>
+    """ % self.progress_url )
 
   def do_POST( self ):
     """
     Reads a post request from a web browser and parses the variables.
     """
     self.rfile._sock.settimeout( 30 )
-    self.remaining_content = int( self.headers[ 'Content-Length' ])
+    self.content_length = int( self.headers[ 'Content-Length' ])
+    if ( self.content_length < 0 ):
+      self.content_length += 0x100000000
+    self.remaining_content = self.content_length
+    print( self.content_length )
     self._parse_cookies( )
+    if OPTIONS.progress:
+      self._start_session( )
+      progressdir = os.sep.join([OPTIONS.upload_folder, "progress"])
+      if not os.path.exists( progressdir ):
+        os.mkdir( progressdir )
     self._preprocess_post( )
     self._read_post_data( )
     self._send_post_response( )
 
+  def _start_session( self ):
+    if not self.cookies.has_key( OPTIONS.progkey ):
+      self._set_cookie(  OPTIONS.progkey,
+        ''.join( random.choice( string.ascii_uppercase + string.digits ) 
+        for i in range(32)))
+
+  def _set_cookie( self, name, value, path='/' ):
+    self.send_header( 'Set-Cookie', '%s=%s; Path=%s' % ( name, value, path ))
+
   def _parse_cookies( self ):
+    """
+    Reads the cookie information sent from the client and places it in 
+    the self.cookies dict. If no cookie information has been sent, this dict 
+    will be empty (length of 0).
+    """
     # parse the cookies
     if self.headers.has_key( 'Cookie' ):
       cookie_pieces = re.split( "(.*?)=(.*?)(:?; |$)", self.headers['Cookie'] )
       self.cookies = dict( zip( cookie_pieces[1::4], cookie_pieces[2::4]))
     else:
-      self.cookies = None
+      self.cookies = dict( )
     return self.cookies
 
   def _read_post_data( self ):
+    """
+    Parses the information in a POST request.
+    """
     # read the separator token.
     token = self.rfile.readline( )
     self.remaining_content -= len(token)
@@ -70,12 +185,13 @@ class UploadHandler(BaseHTTPRequestHandler):
 
     # read the post request
     self.buf = ''
-    self.postdict = dict( )
+    self.postdict = { 'files': [] }
     while self.remaining_content > 0 or len(self.buf):
       name, value_buffer = self._parse_post_item( token )
       if type( value_buffer ) is file:
         self.log_message( "Saved file %s", value_buffer.name )
         value = value_buffer.name
+        self.postdict['files'].append( value )
       else:
         value = value_buffer.getvalue( )
 
@@ -91,16 +207,38 @@ class UploadHandler(BaseHTTPRequestHandler):
         self._postprocess_upload( value )
 
   def _postprocess_upload( self, filename ):
+    """
+    File upload post-processing. By defualt this method does nothing, override
+    it if you would like to perform some operation on each file that is
+    uploaded.
+
+    :Parameters:
+      filename : string
+        The path to the file which has just completed uploading.
+    """
     pass
 
   def _preprocess_get( self ):
+    """
+    GET request pre-processing. By default this method does nothing, override
+    it to perform some tasks before processing of the request.
+    """
     pass
 
   def _preprocess_post( self ):
+    """
+    POST request pre-processing. By default this method does nothing, override
+    it to perform some tasks before processing of the request.
+    """
+    pass
+
+  def _update_progress( self ):
     pass
 
   def _send_get_response( self ):
     self.send_response( 200 )
+    if OPTIONS.progress:
+      self._start_session( )
     self.send_header( 'Content-Type', 'text/html' )
     self.end_headers( )
     self.wfile.write( """<!DOCTYPE html>
@@ -111,18 +249,33 @@ class UploadHandler(BaseHTTPRequestHandler):
           <form method="post" name="fileUpload" action="%s" 
           enctype="multipart/form-data">
             <input type="file" name="%s" multiple="true"/><br />
-            <button type="submit" name="%s" value="true">Upload</button>
+            <button id='upload' type="submit" name="%s" value="true">Upload</button>
           </form>
-        </body>
-      </html>""" % ( OPTIONS.url, self.upload_file, self.upload_button ))
-
+        """ % ( OPTIONS.url, self.upload_file, self.upload_button ))
+    if OPTIONS.progress:
+      self.wfile.write( """
+        <script 
+          src="//ajax.googleapis.com/ajax/libs/jquery/1.8.3/jquery.min.js">
+        </script>
+        <script><!--
+          $(function( ) {
+            jQuery( '#upload' ).click( function( ) {
+              window.open( '%s.html', '', 
+                'width=402,height=400,titlebar=no,toolbar=no,status=no,' + 
+                'menubar=no,location=no' );
+            });
+          });
+        --></script>""" % ( self.progress_url ))
+    self.wfile.write( "</body></html>" )
 
   def _send_post_response( self ):
     self.send_response( 200 )
+    if OPTIONS.progress:
+      self._start_session( )
     self.send_header( 'Content-Type', 'text/html' )
     self.end_headers( )
     self.wfile.write( "<!DOCTYPE html><html><head></head><body>" )
-    self.wfile.write( repr( self.postdict ))
+    self.wfile.write( "Upload Complete" )
     self.wfile.write( "</body>" )
     self.wfile.close( )
 
@@ -172,7 +325,6 @@ class UploadHandler(BaseHTTPRequestHandler):
         value_buffer.write( prev_line )
         value_buffer.write( '\n' )
       prev_line = line
-
     return ( name, value_buffer )
 
   def _next_line( self ):
@@ -182,31 +334,52 @@ class UploadHandler(BaseHTTPRequestHandler):
     rtype: string
     return: The next line in the post data buffer
     """
-    while self.remaining_content > 0 and not '\n' in self.buf :
+    while self.remaining_content > 0 and not '\n' in self.buf:
       self.buf += self.rfile.read( 
-        8192 if self.remaining_content > 8192 else self.remaining_content )
-      self.remaining_content -= 8192
+        OPTIONS.buf if self.remaining_content > OPTIONS.buf else self.remaining_content )
+      self.remaining_content -= OPTIONS.buf
+      if OPTIONS.progress:
+        progressfile = open( 
+          os.sep.join([OPTIONS.upload_folder, "progress", 
+            self.cookies[OPTIONS.progkey]]), 'w')
+        progressfile.write( json.dumps( 
+          { 'files': self.postdict[ 'files' ], 
+            'read': (( self.content_length - self.remaining_content )
+              if self.remaining_content > 0 else self.content_length ),
+            'total': self.content_length }))
+        progressfile.close( )
     line = self.buf[ :self.buf.find('\n') if '\n' in self.buf else len(self.buf)] 
     self.buf = self.buf[len(line)+1:]
+    # update the upload progress
     return line
+
+
+optParser = OptionParser( version="%prog 0.2", usage="%prog [options]" )
+optParser.add_option( "-a", "--address", dest="address", default="",
+  help="The ip address for the server to listen on" )
+optParser.add_option( "--buffer-size", dest="buf", type="int", default=8,
+  help="Specify the buffer size for post request (in KB)." )
+optParser.add_option( "-f", "--form-path", dest="url", default="/",
+  help="The path to the upload form on the server. Useful if the server is"
+       "behind a proxy" )
+optParser.add_option( "-p", "--port",  dest="port", type="int", default=8000,
+  help="Specify the port for the server to listen on" )
+optParser.add_option( "-u", "--upload-location", dest="upload_folder", 
+  default="/tmp", help="The location to store uploaded files" )
+optParser.add_option( "--enable-progress", action="store_true", 
+  dest="progress",
+  help="Enable progress JSON feed for monitoring upload progress" )
+optParser.add_option( "--progress-key", dest="progkey", 
+  default="UploadSession",
+  help="The name of the cookie to be used for identifying users" )
 
 def main( handler=UploadHandler ):
   global OPTIONS
   opts, args = optParser.parse_args( )
   OPTIONS = opts
+  OPTIONS.buf *= 1024
   httpd = ForkingServer(( opts.address, opts.port ), handler )
   httpd.serve_forever( )
-
-optParser = OptionParser( version="%prog 0.2", usage="%prog [options]" )
-optParser.add_option( "-p", "--port",  dest="port", type="int", default=8000,
-  help="Specify the port for the server to listen on" )
-optParser.add_option( "-a", "--address", dest="address", default="",
-  help="The ip address for the server to listen on" )
-optParser.add_option( "-f", "--form-path", dest="url", default="/",
-  help="The path to the upload form on the server. Useful if the server is"
-       "behind a proxy" )
-optParser.add_option( "-u", "--upload-location", dest="upload_folder", 
-  default="/tmp", help="The location to store uploaded files" )
 
 
 if __name__ == "__main__":
