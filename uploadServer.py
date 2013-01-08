@@ -288,9 +288,11 @@ class UploadHandler(BaseHTTPRequestHandler):
         <script><!--
           $(function( ) {
             jQuery( '#upload' ).click( function( ) {
-              window.open( '%s.html', '', 
-                'width=402,height=400,titlebar=no,toolbar=no,status=no,' + 
-                'menubar=no,location=no' );
+              jQuery('*').css( 'cursor','wait');
+              if ( ! jQuery.browser.msie ) // progress bar doesn't work in IE.
+                open( '%s.html', '', 
+                  'width=402,height=400,titlebar=no,toolbar=no,status=no,' + 
+                  'menubar=no,location=no' );
             });
           });
         --></script>""" % ( self.progress_url ))
