@@ -25,14 +25,14 @@ case "$1" in
     if [ ! -z "$UPLOAD_FOLDER" ]; then
       opts="$opts -u $UPLOAD_FOLDER"
     fi;
-    if [ "$ENABLE_PROGRESS" -eq "True" ]; then
+    if [ "$ENABLE_PROGRESS" == "True" ]; then
       opts="$opts --enable-progress"
     fi;
-    if [ ! -z "$PROGRESS_KEY" ]; then
-      opts="$opts --progress-key=$PROGRESS_KEY"
+    if [ ! -z "$SESSION_KEY" ]; then
+      opts="$opts --session-key=$SESSION_KEY"
     fi;
 		# RUN
-		${daemon_name} ${opts} 2>> /var/log/uploadserver.log &
+		${daemon_name} ${opts} >i /dev/null  2>> /var/log/uploadserver.log &
     PID=$!
 
     sleep 1

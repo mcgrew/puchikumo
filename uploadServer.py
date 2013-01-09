@@ -27,12 +27,14 @@ import random
 import string
 
 
+VERSION = "0.2"
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
 
 PROGRESS_HTML = """<!DOCTYPE html>
 <html>
   <head>
+    <title>Upload Progress</title>
     <style type="text/css">
       body {
         padding: 0;
@@ -118,7 +120,6 @@ class UploadHandler(BaseHTTPRequestHandler):
     self.rfile._sock.settimeout( 30 )
     self._parse_cookies( )
     self._preprocess_get( )
-    print( self.path )
     self.progress_url = OPTIONS.url
     if self.progress_url.endswith( '/' ):
       self.progress_url = self.progress_url[ :-1 ]
@@ -138,7 +139,7 @@ class UploadHandler(BaseHTTPRequestHandler):
       return
     progressfilename = \
       os.sep.join([OPTIONS.upload_folder, "progress", 
-        self.cookies[OPTIONS.progkey]])
+        self.cookies[OPTIONS.sessionkey]])
     if not os.path.exists( progressfilename ):
       self.send_error( 404 )
       return
@@ -172,8 +173,8 @@ class UploadHandler(BaseHTTPRequestHandler):
     if ( self.content_length < 0 ):
       self.content_length += 0x100000000
     self.remaining_content = self.content_length
-    print( self.content_length )
     self._parse_cookies( )
+    self.upload_folder = OPTIONS.upload_folder
     if OPTIONS.progress:
       self._start_session( )
       progressdir = os.sep.join([OPTIONS.upload_folder, "progress"])
@@ -184,8 +185,8 @@ class UploadHandler(BaseHTTPRequestHandler):
     self._send_post_response( )
 
   def _start_session( self ):
-    if not self.cookies.has_key( OPTIONS.progkey ):
-      self._set_cookie(  OPTIONS.progkey,
+    if not self.cookies.has_key( OPTIONS.sessionkey ):
+      self._set_cookie(  OPTIONS.sessionkey,
         ''.join( random.choice( string.ascii_uppercase + string.digits ) 
         for i in range(32)))
 
@@ -224,7 +225,8 @@ class UploadHandler(BaseHTTPRequestHandler):
         self.log_message( "Saved file %s", value_buffer.name )
         value = value_buffer.name
         self.postdict['files'].append( value )
-        self._update_progress( )
+        if OPTIONS.progress:
+          self._update_progress( )
       else:
         value = value_buffer.getvalue( )
 
@@ -345,9 +347,9 @@ class UploadHandler(BaseHTTPRequestHandler):
       line = self._next_line( )
 
     if filename:
-      if not os.path.exists( OPTIONS.upload_folder ):
-        os.mkdir( OPTIONS.upload_folder )
-      value_buffer = open( '%s/%s' % ( OPTIONS.upload_folder, filename), 'wb' )
+      if not os.path.exists( self.upload_folder ):
+        os.mkdir( self.upload_folder )
+      value_buffer = open( '%s/%s' % ( self.upload_folder, filename), 'wb' )
     else:
       value_buffer = StringIO( )
     prev_line = False
@@ -373,7 +375,7 @@ class UploadHandler(BaseHTTPRequestHandler):
       self.buf += self.rfile.read( 
         OPTIONS.buf_size if self.remaining_content > OPTIONS.buf_size
         else self.remaining_content )
-      self.remaining_content -= OPTIONS.buf
+      self.remaining_content -= OPTIONS.buf_size
       if OPTIONS.progress:
         self._update_progress( )
     line = self.buf[ :self.buf.find('\n')+1 
@@ -389,7 +391,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     """
     progressfile = open( 
       os.sep.join([OPTIONS.upload_folder, "progress", 
-        self.cookies[OPTIONS.progkey]]), 'w')
+        self.cookies[OPTIONS.sessionkey]]), 'w')
     progressfile.write( json.dumps( 
       { 'files': [os.path.basename( x ) for x in self.postdict[ 'files' ]], 
         'read': (( self.content_length - self.remaining_content )
@@ -398,7 +400,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     progressfile.close( )
 
 
-optParser = OptionParser( version="%prog 0.2", usage="%prog [options]" )
+optParser = OptionParser(version="%%prog %s" % VERSION, usage="%prog [options]")
 optParser.add_option( "-a", "--address", dest="address", default="",
   help="The ip address for the server to listen on" )
 optParser.add_option( "--buffer-size", dest="buf_size", type="int", default=8,
@@ -411,19 +413,18 @@ optParser.add_option( "-p", "--port",  dest="port", type="int", default=8000,
 optParser.add_option( "-u", "--upload-location", dest="upload_folder", 
   default="/tmp", help="The location to store uploaded files" )
 optParser.add_option( "--enable-progress", action="store_true", 
-  dest="progress",
+  dest="progress", default=False,
   help="Enable progress JSON feed for monitoring upload progress" )
-optParser.add_option( "--progress-key", dest="progkey", 
+optParser.add_option( "--session-key", dest="sessionkey", 
   default="UploadSession",
   help="The name of the cookie to be used for identifying users" )
 
 def main( handler=UploadHandler ):
   global OPTIONS
   sys.stderr.write( "Starting with command: %s\n" % ' '.join( sys.argv ))
-  opts, args = optParser.parse_args( )
-  OPTIONS = opts
+  OPTIONS, args = optParser.parse_args( )
   OPTIONS.buf_size *= 1024
-  httpd = ForkingServer(( opts.address, opts.port ), handler )
+  httpd = ForkingServer(( OPTIONS.address, OPTIONS.port ), handler )
   httpd.serve_forever( )
 
 

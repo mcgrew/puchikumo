@@ -4,9 +4,9 @@
 # then please put 'unknown'.
 
 # Maintainer: Your Name <youremail@domain.com>
-pkgname=pipeline-upload-server
+pkgname=uploadserver
 pkgver=0.2
-pkgrel=2
+pkgrel=1
 epoch=
 pkgdesc=""
 arch=(any)
@@ -26,10 +26,9 @@ install=
 changelog=
 source=(uploadServer.py uploadserver uploadServer.conf)
 noextract=()
-md5sums=('050738a5a3c067c73e112bde4240c3d0'
-         '4ed5429270dc5e31271a38beda639bd8'
-         '96acc54e3617e32f8cc39d8f285c9c1e')
-
+md5sums=('501f6446ac9eee2c3b66f55a90ce4c03'
+         'ff1f5a045f90b589d94fc62d35ba3692'
+         '766eef8327e21fef05a08e1b8ce97767')
 package() {
   cd "$srcdir"
   mkdir -p "$pkgdir/usr/bin/"
