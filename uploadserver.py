@@ -64,6 +64,14 @@ PROGRESS_HTML = """<!DOCTYPE html>
       #progressIndicator {
         font-weight: bold;
       }
+      .complete {
+        font-size: 0.8em;
+        color: #33aa33;
+      }
+      .inTransit {
+        font-size: 0.8em;
+        color: #dd4444;
+      }
     </style>
   </head>
   <body>
@@ -74,7 +82,7 @@ PROGRESS_HTML = """<!DOCTYPE html>
   <span id='progressIndicator'>0%%</span>
 </div>
 <div id='fileBox'>
-  <h3>Uploaded Files:</h3>
+  <h3>Files:</h3>
   <span id='fileList'>
   </span>
 </div>
@@ -93,8 +101,14 @@ PROGRESS_HTML = """<!DOCTYPE html>
         progressbar.css( 'width', data.read / data.total * 400 );
         progressIndicator.html( 
           Math.round( data.read / data.total * 100 ) + "%%")
-        fileList.html( data.files.join( '<br />' ));
-        
+        filesHTML = data.files.join( 
+          ' <span class="complete">Complete!</span><br />');
+        if ( data.files.length )
+          filesHTML += ' <span class="complete">Complete!</span><br />';
+        if ( data.current )
+          filesHTML += 
+            data.current + ' <span class="inTransit">Transferring...</span>';
+        fileList.html( filesHTML );
       }
     });
   }
@@ -361,6 +375,8 @@ class UploadHandler(BaseHTTPRequestHandler):
       if not ( prev_line is False ):
         value_buffer.write( prev_line )
       prev_line = line
+      if OPTIONS.progress:
+        self._update_progress( filename )
     return ( name, value_buffer )
 
   def _next_line( self ):
@@ -376,15 +392,13 @@ class UploadHandler(BaseHTTPRequestHandler):
         OPTIONS.buf_size if self.remaining_content > OPTIONS.buf_size
         else self.remaining_content )
       self.remaining_content -= OPTIONS.buf_size
-      if OPTIONS.progress:
-        self._update_progress( )
     line = self.buf[ :self.buf.find('\n')+1 
       if '\n' in self.buf else len(self.buf)] 
     self.buf = self.buf[len(line):]
     # update the upload progress
     return line
 
-  def _update_progress( self ):
+  def _update_progress( self, current_transfer=None ):
     """
     Adds uploaded files and current upload progress to a file for the JSON 
     progress feed.
@@ -392,11 +406,13 @@ class UploadHandler(BaseHTTPRequestHandler):
     progressfile = open( 
       os.sep.join([OPTIONS.upload_folder, "progress", 
         self.cookies[OPTIONS.sessionkey]]), 'w')
-    progressfile.write( json.dumps( 
-      { 'files': [os.path.basename( x ) for x in self.postdict[ 'files' ]], 
-        'read': (( self.content_length - self.remaining_content )
-          if self.remaining_content > 0 else self.content_length ),
-        'total': self.content_length }))
+    progress = { 'files': [os.path.basename( x ) for x in self.postdict[ 'files' ]], 
+      'read': (( self.content_length - self.remaining_content )
+        if self.remaining_content > 0 else self.content_length ),
+      'total': self.content_length }
+    if current_transfer:
+      progress['current'] = current_transfer
+    progressfile.write( json.dumps( progress ))
     progressfile.close( )
 
 

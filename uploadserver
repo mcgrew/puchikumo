@@ -1,6 +1,6 @@
 #!/bin/bash
 
-daemon_name=uploadServer
+daemon_name=uploadserver
 
 . /etc/rc.conf
 . /etc/rc.d/functions
@@ -32,7 +32,7 @@ case "$1" in
       opts="$opts --session-key=$SESSION_KEY"
     fi;
 		# RUN
-		${daemon_name} ${opts} >i /dev/null  2>> /var/log/uploadserver.log &
+		${daemon_name} ${opts} > /dev/null  2>> /var/log/uploadserver.log &
     PID=$!
 
     sleep 1
