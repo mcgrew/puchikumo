@@ -29,7 +29,7 @@ case "$1" in
       opts="$opts --enable-progress"
     fi;
     if [ ! -z "$PROGRESS_KEY" ]; then
-      opts="$opts --progrss-key=$PROGRESS_KEY"
+      opts="$opts --progress-key=$PROGRESS_KEY"
     fi;
 		# RUN
 		${daemon_name} ${opts} 2>> /var/log/uploadserver.log &

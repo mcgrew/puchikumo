@@ -18,6 +18,7 @@
 from BaseHTTPServer import HTTPServer, BaseHTTPRequestHandler
 from SocketServer import ForkingMixIn
 import os
+import sys
 import re
 from cStringIO import StringIO
 from optparse import OptionParser
@@ -118,9 +119,6 @@ class UploadHandler(BaseHTTPRequestHandler):
     self._parse_cookies( )
     self._preprocess_get( )
     if OPTIONS.progress:
-      self.progress_url = OPTIONS.url
-      if self.progress_url.endswith( '/' ):
-        self.progress_url = self.progress_url[ :-1 ]
       self.progress_url += '/progress'
       if self.path ==  self.progress_url:
         self._progress( )
@@ -399,7 +397,7 @@ optParser.add_option( "-a", "--address", dest="address", default="",
 optParser.add_option( "--buffer-size", dest="buf_size", type="int", default=8,
   help="Specify the buffer size for post request (in KB)." )
 optParser.add_option( "-f", "--form-path", dest="url", default="/",
-  help="The path to the upload form on the server. Useful if the server is"
+  help="The path to the upload form on the server. Useful if the server is "
        "behind a proxy" )
 optParser.add_option( "-p", "--port",  dest="port", type="int", default=8000,
   help="Specify the port for the server to listen on" )
@@ -414,6 +412,7 @@ optParser.add_option( "--progress-key", dest="progkey",
 
 def main( handler=UploadHandler ):
   global OPTIONS
+  sys.stderr.write( "Starting with command: %s\n" % ' '.join( sys.argv ))
   opts, args = optParser.parse_args( )
   OPTIONS = opts
   OPTIONS.buf_size *= 1024

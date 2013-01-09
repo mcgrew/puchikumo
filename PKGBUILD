@@ -20,7 +20,7 @@ optdepends=()
 provides=()
 conflicts=()
 replaces=()
-backup=()
+backup=("etc/conf.d/uploadServer.conf")
 options=()
 install=
 changelog=
@@ -34,6 +34,7 @@ package() {
   cd "$srcdir"
   echo "#!/usr/bin/env python2" > $pkgdir/usr/bin/uploadserver
   tail -n +2 $srcdir/uploadServer.py >> $pkgdir/usr/bin/uploadserver
+  chmod +x $pkgdir/usr/bin/uploadserver
   install -D uploadServer.conf ${pkgdir}/etc/conf.d/uploadServer.conf
   install -D uploadserver ${pkgdir}/etc/rc.d/uploadserver
 }
