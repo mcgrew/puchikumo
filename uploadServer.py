@@ -118,12 +118,16 @@ class UploadHandler(BaseHTTPRequestHandler):
     self.rfile._sock.settimeout( 30 )
     self._parse_cookies( )
     self._preprocess_get( )
+    print( self.path )
+    self.progress_url = OPTIONS.url
+    if self.progress_url.endswith( '/' ):
+      self.progress_url = self.progress_url[ :-1 ]
+    self.progress_url += '/progress'
     if OPTIONS.progress:
-      self.progress_url += '/progress'
-      if self.path ==  self.progress_url:
+      if self.path == "/progress": 
         self._progress( )
         return
-      if self.path == self.progress_url + ".html":
+      if self.path == "/progress.html":
         self._get_progress_page( )
         return
     self._send_get_response( )
@@ -151,10 +155,13 @@ class UploadHandler(BaseHTTPRequestHandler):
     
 
   def _get_progress_page( self ):
+    reply = PROGRESS_HTML % self.progress_url
     self.send_response( 200 )
     self.send_header( "Content-Type", 'text/html' )
+    self.send_header( "Content-Length", len( reply ))
     self.end_headers( )
-    self.wfile.write( PROGRESS_HTML % self.progress_url )
+    self.wfile.write( reply )
+    self.wfile.close( )
 
   def do_POST( self ):
     """

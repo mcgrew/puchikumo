@@ -26,12 +26,13 @@ install=
 changelog=
 source=(uploadServer.py uploadserver uploadServer.conf)
 noextract=()
-md5sums=('ff5393ad544bc030d0a777453746ad37'
+md5sums=('050738a5a3c067c73e112bde4240c3d0'
          '4ed5429270dc5e31271a38beda639bd8'
          '96acc54e3617e32f8cc39d8f285c9c1e')
 
 package() {
   cd "$srcdir"
+  mkdir -p "$pkgdir/usr/bin/"
   echo "#!/usr/bin/env python2" > $pkgdir/usr/bin/uploadserver
   tail -n +2 $srcdir/uploadServer.py >> $pkgdir/usr/bin/uploadserver
   chmod +x $pkgdir/usr/bin/uploadserver
