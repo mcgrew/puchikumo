@@ -26,8 +26,8 @@ install=
 changelog=
 source=(uploadServer.py uploadserver uploadServer.conf)
 noextract=()
-md5sums=('5dcf892a22776fd6c5c517df21a35422'
-         '56fa808ca3981e2752f9b53ea05e8a51'
+md5sums=('ff5393ad544bc030d0a777453746ad37'
+         '4ed5429270dc5e31271a38beda639bd8'
          '96acc54e3617e32f8cc39d8f285c9c1e')
 
 package() {
