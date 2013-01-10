@@ -1,6 +1,7 @@
 #!/bin/bash
 
 daemon_name=uploadserver
+python_name=python2 #for Archlinux, probably just python on others
 
 . /etc/rc.conf
 . /etc/rc.d/functions
@@ -24,6 +25,9 @@ case "$1" in
     fi;
     if [ ! -z "$UPLOAD_FOLDER" ]; then
       opts="$opts -u $UPLOAD_FOLDER"
+    fi;
+    if [ ! -z "$TMP_FOLDER" ]; then
+      opts="$opts -t $TMP_FOLDER"
     fi;
     if [ "$ENABLE_PROGRESS" == "True" ]; then
       opts="$opts --enable-progress"
@@ -52,9 +56,9 @@ case "$1" in
       stat_fail
       exit 1
     fi
-		PID=$(cat /var/run/$daemon_name.pid)
+		PID="$(pidof $python_name $daemon_name)"
 		# KILL
-		[[ -n $PID ]] && kill $PID &> /dev/null
+		[[ ! -z $PID ]] && kill $PID &> /dev/null
 
 		if [[ $? -gt 0 ]]; then
 			stat_fail
@@ -72,10 +76,10 @@ case "$1" in
 		$0 start
 		;;
 
-	status)
-		stat_busy "Checking $daemon_name status";
-		ck_status $daemon_name
-		;;
+#	status)
+#		stat_busy "Checking $daemon_name status... ";
+#		ck_status $daemon_name
+#		;;
 
 	*)
 		echo "usage: $0 {start|stop|restart|status}"

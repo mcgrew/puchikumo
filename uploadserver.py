@@ -152,7 +152,7 @@ class UploadHandler(BaseHTTPRequestHandler):
       self.send_error( 403 )
       return
     progressfilename = \
-      os.sep.join([OPTIONS.upload_folder, "progress", 
+      os.sep.join([OPTIONS.tmp_folder, "progress", 
         self.cookies[OPTIONS.sessionkey]])
     if not os.path.exists( progressfilename ):
       self.send_error( 404 )
@@ -191,9 +191,9 @@ class UploadHandler(BaseHTTPRequestHandler):
     self.upload_folder = OPTIONS.upload_folder
     if OPTIONS.progress:
       self._start_session( )
-      progressdir = os.sep.join([OPTIONS.upload_folder, "progress"])
+      progressdir = os.sep.join([OPTIONS.tmp_folder, "progress"])
       if not os.path.exists( progressdir ):
-        os.mkdir( progressdir )
+        os.makedirs( progressdir )
     self._preprocess_post( )
     self._read_post_data( )
     self._send_post_response( )
@@ -281,9 +281,6 @@ class UploadHandler(BaseHTTPRequestHandler):
     """
     pass
 
-  def _update_progress( self ):
-    pass
-
   def _send_get_response( self ):
     self.send_response( 200 )
     if OPTIONS.progress:
@@ -311,8 +308,8 @@ class UploadHandler(BaseHTTPRequestHandler):
             jQuery( '#upload' ).click( function( ) {
               jQuery('*').css( 'cursor','wait');
               if ( ! jQuery.browser.msie ) // progress bar doesn't work in IE.
-                open( '%s.html', '', 
-                  'width=402,height=400,titlebar=no,toolbar=no,status=no,' + 
+                open( '%s.html', '',
+                  'width=402,height=400,titlebar=no,toolbar=no,status=no,' +
                   'menubar=no,location=no' );
             });
           });
@@ -362,7 +359,7 @@ class UploadHandler(BaseHTTPRequestHandler):
 
     if filename:
       if not os.path.exists( self.upload_folder ):
-        os.mkdir( self.upload_folder )
+        os.makedirs( self.upload_folder )
       value_buffer = open( '%s/%s' % ( self.upload_folder, filename), 'wb' )
     else:
       value_buffer = StringIO( )
@@ -376,6 +373,7 @@ class UploadHandler(BaseHTTPRequestHandler):
         value_buffer.write( prev_line )
       prev_line = line
       if OPTIONS.progress:
+        # update the upload progress
         self._update_progress( filename )
     return ( name, value_buffer )
 
@@ -395,7 +393,6 @@ class UploadHandler(BaseHTTPRequestHandler):
     line = self.buf[ :self.buf.find('\n')+1 
       if '\n' in self.buf else len(self.buf)] 
     self.buf = self.buf[len(line):]
-    # update the upload progress
     return line
 
   def _update_progress( self, current_transfer=None ):
@@ -403,9 +400,11 @@ class UploadHandler(BaseHTTPRequestHandler):
     Adds uploaded files and current upload progress to a file for the JSON 
     progress feed.
     """
-    progressfile = open( 
-      os.sep.join([OPTIONS.upload_folder, "progress", 
-        self.cookies[OPTIONS.sessionkey]]), 'w')
+    # create a file with a different name and rename it. This should prevent the
+    # progress feed thread from sending an incomplete file.
+    progressfilename = os.sep.join([OPTIONS.tmp_folder, "progress", 
+        self.cookies[OPTIONS.sessionkey]])
+    progressfile = open( progressfilename + '~', 'w')
     progress = { 'files': [os.path.basename( x ) for x in self.postdict[ 'files' ]], 
       'read': (( self.content_length - self.remaining_content )
         if self.remaining_content > 0 else self.content_length ),
@@ -414,6 +413,7 @@ class UploadHandler(BaseHTTPRequestHandler):
       progress['current'] = current_transfer
     progressfile.write( json.dumps( progress ))
     progressfile.close( )
+    os.rename( progressfilename + '~', progressfilename )
 
 
 optParser = OptionParser(version="%%prog %s" % VERSION, usage="%prog [options]")
@@ -428,6 +428,8 @@ optParser.add_option( "-p", "--port",  dest="port", type="int", default=8000,
   help="Specify the port for the server to listen on" )
 optParser.add_option( "-u", "--upload-location", dest="upload_folder", 
   default="/tmp", help="The location to store uploaded files" )
+optParser.add_option( "-t", "--tmp-location", default="/tmp", dest="tmp_folder",
+  help="The location to store temporary files for the progress feed, etc." )
 optParser.add_option( "--enable-progress", action="store_true", 
   dest="progress", default=False,
   help="Enable progress JSON feed for monitoring upload progress" )
