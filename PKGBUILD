@@ -5,7 +5,7 @@
 
 # Maintainer: Your Name <youremail@domain.com>
 pkgname=uploadserver
-pkgver=0.2
+pkgver=0.2.3
 pkgrel=1
 epoch=
 pkgdesc=""
@@ -26,9 +26,9 @@ install=
 changelog=
 source=(uploadserver.py uploadserver uploadserver.conf)
 noextract=()
-md5sums=('b8a71f2d2587a583f7809a602079b4f6'
-         'aacd9134a36caad8eafee11c088f1b7e'
-         '45aa5089f01adaf789eea87ff234a19d')
+md5sums=('3fa81986fee52b778ce95b6840a9b9e9'
+         'eb6e22f32ca19734d92a6df22d3e8a90'
+         '36cea59a09eba4835f53c8947b86c866')
 package() {
   cd "$srcdir"
   mkdir -p "$pkgdir/usr/bin/"

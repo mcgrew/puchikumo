@@ -12,22 +12,25 @@ case "$1" in
 		stat_busy "Starting $daemon_name daemon"
     
     if [ ! -z "$PORT" ]; then
-      opts="$opts -p $PORT"
+      opts="$opts --port=$PORT"
     fi;
     if [ ! -z "$ADDRESS" ]; then
-      opts="$opts -a $ADDRESS"
+      opts="$opts --address=$ADDRESS"
     fi;
     if [ ! -z "$FORM_URL" ]; then
-      opts="$opts -f $FORM_URL"
+      opts="$opts --form-path=$FORM_URL"
     fi;
-    if [ ! -z "$BUFFER_SIZE" ]; then
-      opts="$opts --buffer-size=$BUFFER_SIZE"
+    if [ ! -z "$READ_BUFFER" ]; then
+      opts="$opts --read-buffer=$BUFFER_SIZE"
+    fi;
+    if [ ! -z "$WRITE_BUFFER" ]; then
+      opts="$opts --write-buffer=$BUFFER_SIZE"
     fi;
     if [ ! -z "$UPLOAD_FOLDER" ]; then
-      opts="$opts -u $UPLOAD_FOLDER"
+      opts="$opts --upload-location=$UPLOAD_FOLDER"
     fi;
     if [ ! -z "$TMP_FOLDER" ]; then
-      opts="$opts -t $TMP_FOLDER"
+      opts="$opts --tmp-location=$TMP_FOLDER"
     fi;
     if [ "$ENABLE_PROGRESS" == "True" ]; then
       opts="$opts --enable-progress"

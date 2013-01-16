@@ -232,6 +232,7 @@ class UploadHandler(BaseHTTPRequestHandler):
 
     # read the post request
     self.readbuf = None
+    self.writebuf = StringIO( )
     self.postdict = { 'files': [] }
     while True:
       name, value_buffer = self._parse_post_item( token )
@@ -368,18 +369,27 @@ class UploadHandler(BaseHTTPRequestHandler):
     prev_line = False
     while not line.startswith( token ):
       if self._finished( ):
+        self._flush_write_buffer( None )
         return False, False
       line = self._next_line( )
       if line.startswith( token ):
-        value_buffer.write( prev_line[:-2] )# strip the "^M\n" from the end
+        self.writebuf.write( prev_line[:-2] )# strip the "^M\n" from the end
         break
       if not ( prev_line is False ):
-        value_buffer.write( prev_line )
+        self.writebuf.write( prev_line )
       prev_line = line
       if OPTIONS.progress:
         # update the upload progress
         self._update_progress( filename )
+      if self.writebuf.tell( ) > OPTIONS.writebuf:
+        self._flush_write_buffer( value_buffer )
+    self._flush_write_buffer( value_buffer )
     return ( name, value_buffer )
+
+  def _flush_write_buffer( self, outfile ):
+    if outfile:
+      outfile.write( self.writebuf.getvalue( ))
+    self.writebuf.truncate( 0 )
 
   def _next_line( self ):
     """
