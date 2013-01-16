@@ -21,10 +21,10 @@ case "$1" in
       opts="$opts --form-path=$FORM_URL"
     fi;
     if [ ! -z "$READ_BUFFER" ]; then
-      opts="$opts --read-buffer=$BUFFER_SIZE"
+      opts="$opts --read-buffer=$READ_BUFFER"
     fi;
     if [ ! -z "$WRITE_BUFFER" ]; then
-      opts="$opts --write-buffer=$BUFFER_SIZE"
+      opts="$opts --write-buffer=$WRITE_BUFFER"
     fi;
     if [ ! -z "$UPLOAD_FOLDER" ]; then
       opts="$opts --upload-location=$UPLOAD_FOLDER"

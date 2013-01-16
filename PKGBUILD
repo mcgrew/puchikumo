@@ -27,7 +27,7 @@ changelog=
 source=(uploadserver.py uploadserver uploadserver.conf)
 noextract=()
 md5sums=('3fa81986fee52b778ce95b6840a9b9e9'
-         'eb6e22f32ca19734d92a6df22d3e8a90'
+         '400458cb52492858a787cf582fabe3a1'
          '36cea59a09eba4835f53c8947b86c866')
 package() {
   cd "$srcdir"
