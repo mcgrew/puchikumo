@@ -27,7 +27,7 @@ import random
 import string
 
 
-VERSION = "0.2"
+VERSION = "0.2.3"
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
 
@@ -231,10 +231,12 @@ class UploadHandler(BaseHTTPRequestHandler):
     token = token.strip( )
 
     # read the post request
-    self.buf = ''
+    self.readbuf = None
     self.postdict = { 'files': [] }
-    while self.remaining_content > 0 or len(self.buf):
+    while True:
       name, value_buffer = self._parse_post_item( token )
+      if not value_buffer:
+        return
       if type( value_buffer ) is file:
         self.log_message( "Saved file %s", value_buffer.name )
         value = value_buffer.name
@@ -365,6 +367,8 @@ class UploadHandler(BaseHTTPRequestHandler):
       value_buffer = StringIO( )
     prev_line = False
     while not line.startswith( token ):
+      if self._finished( ):
+        return False, False
       line = self._next_line( )
       if line.startswith( token ):
         value_buffer.write( prev_line[:-2] )# strip the "^M\n" from the end
@@ -384,16 +388,22 @@ class UploadHandler(BaseHTTPRequestHandler):
     rtype: string
     return: The next line in the post data buffer
     """
-    if self.remaining_content > 0 and len(self.buf) < OPTIONS.buf_size \
-      and not '\n' in self.buf:
-      self.buf += self.rfile.read( 
-        OPTIONS.buf_size if self.remaining_content > OPTIONS.buf_size
-        else self.remaining_content )
-      self.remaining_content -= OPTIONS.buf_size
-    line = self.buf[ :self.buf.find('\n')+1 
-      if '\n' in self.buf else len(self.buf)] 
-    self.buf = self.buf[len(line):]
+    line = self.readbuf.readline( ) if self.readbuf else ''
+    if not len( line ):
+      if self.remaining_content <= 0:
+        self.readbuf = None;
+      else:
+        readsize = OPTIONS.readbuf if self.remaining_content > OPTIONS.readbuf \
+          else self.remaining_content 
+        self.readbuf = StringIO( self.rfile.read( readsize ))
+        self.remaining_content -= readsize
+        line = self.readbuf.readline( )
+    if not line.endswith( '\n' ) and not self._finished( ):
+      line += self._next_line( )
     return line
+
+  def _finished( self ):
+    return self.remaining_content <= 0 and not self.readbuf
 
   def _update_progress( self, current_transfer=None ):
     """
@@ -419,7 +429,9 @@ class UploadHandler(BaseHTTPRequestHandler):
 optParser = OptionParser(version="%%prog %s" % VERSION, usage="%prog [options]")
 optParser.add_option( "-a", "--address", dest="address", default="",
   help="The ip address for the server to listen on" )
-optParser.add_option( "--buffer-size", dest="buf_size", type="int", default=8,
+optParser.add_option( "--read-buffer", dest="readbuf", type="int", default=8,
+  help="Specify the buffer size for post request (in KB)." )
+optParser.add_option( "--write-buffer", dest="writebuf", type="int", default=8,
   help="Specify the buffer size for post request (in KB)." )
 optParser.add_option( "-f", "--form-path", dest="url", default="/",
   help="The path to the upload form on the server. Useful if the server is "
@@ -441,7 +453,9 @@ def main( handler=UploadHandler ):
   global OPTIONS
   sys.stderr.write( "Starting with command: %s\n" % ' '.join( sys.argv ))
   OPTIONS, args = optParser.parse_args( )
-  OPTIONS.buf_size *= 1024
+  # convert buffer size to MB
+  OPTIONS.readbuf *= 1048576
+  OPTIONS.writebuf *= 1048576
   httpd = ForkingServer(( OPTIONS.address, OPTIONS.port ), handler )
   httpd.serve_forever( )
 
