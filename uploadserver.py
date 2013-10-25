@@ -327,7 +327,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     self.end_headers( )
     self.wfile.write( "<!DOCTYPE html><html><head></head><body>" )
     self.wfile.write( "Upload Complete" )
-    self.wfile.write( "</body>" )
+    self.wfile.write( "</body></html>" )
     self.wfile.close( )
 
 
