@@ -27,7 +27,7 @@ import random
 import string
 
 
-VERSION = "0.2.3"
+VERSION = "0.2.4"
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
 
@@ -194,6 +194,8 @@ class UploadHandler(BaseHTTPRequestHandler):
       progressdir = os.sep.join([OPTIONS.tmp_folder, "progress"])
       if not os.path.exists( progressdir ):
         os.makedirs( progressdir )
+      # initalize the json feed to prevent the sending of an old file.
+      self._init_progress( )
     self._preprocess_post( )
     self._read_post_data( )
     self._send_post_response( )
@@ -414,6 +416,17 @@ class UploadHandler(BaseHTTPRequestHandler):
 
   def _finished( self ):
     return self.remaining_content <= 0 and not self.readbuf
+
+  def _init_progress( self ):
+    """
+    Initilizes the progress json feed.
+    """
+    progressfilename = os.sep.join([OPTIONS.tmp_folder, "progress", 
+        self.cookies[OPTIONS.sessionkey]])
+    progressfile = open( progressfilename, 'w')
+    progress = { 'files':[], 'read': 0, 'total': self.content_length }
+    progressfile.write( json.dumps( progress ))
+    progressfile.close( )
 
   def _update_progress( self, current_transfer=None ):
     """
