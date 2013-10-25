@@ -35,6 +35,9 @@ case "$1" in
     if [ "$ENABLE_PROGRESS" == "True" ]; then
       opts="$opts --enable-progress"
     fi;
+    if [ "$ENABLE_DONWLOAD" == "True" ]; then
+      opts="$opts --enable-download"
+    fi;
     if [ ! -z "$SESSION_KEY" ]; then
       opts="$opts --session-key=$SESSION_KEY"
     fi;

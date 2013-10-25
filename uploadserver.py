@@ -23,9 +23,13 @@ from optparse import OptionParser
 import json
 import random
 import string
+import mimetypes
+from glob import glob
+from time import ctime
+import math
 
 
-VERSION = "0.2.4"
+VERSION = "0.3.0-pre"
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
 
@@ -138,10 +142,16 @@ class UploadHandler(BaseHTTPRequestHandler):
     self.progress_url += '/progress'
     if OPTIONS.progress:
       if self.path == "/progress": 
+        # send the progres JSON feed
         self._progress( )
         return
       if self.path == "/progress.html":
+        # send the progress page HTML
         self._get_progress_page( )
+        return
+    if OPTIONS.download:
+      if self.path.startswith( '/files/' ):
+        self._file_request( self.path[6:] )
         return
     self._send_get_response( )
 
@@ -159,7 +169,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     self.send_response( 200 )
     self.send_header( 'Content-Type', 'application/json' )
 #    self.send_header( 'Content-Length', 
-#      int( os.stat( progressfilename ).stat_size ))
+#      int( os.stat( progressfilename ).st_size ))
     self.end_headers( )
     progressfile = open( progressfilename, 'r' )
     self.wfile.write( progressfile.read( ))
@@ -198,7 +208,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     self._read_post_data( )
     self._send_post_response( )
 
-  def _start_session( self ):
+
     if not self.cookies.has_key( OPTIONS.sessionkey ):
       self._set_cookie(  OPTIONS.sessionkey,
         ''.join( random.choice( string.ascii_uppercase + string.digits ) 
@@ -318,6 +328,64 @@ class UploadHandler(BaseHTTPRequestHandler):
           });
         --></script>""" % ( self.progress_url ))
     self.wfile.write( "</body></html>" )
+
+  def _file_request( self, path='/' ):
+    # user is requesting a file, send it.
+    real_path = OPTIONS.upload_folder + path 
+    if not os.path.exists( real_path ):
+      self.send_error( 404 )
+      return
+        
+    if os.path.isfile( real_path ):
+      self.send_response( 200 )
+      mimetype = mimetypes.guess_type( real_path )[0]
+      if not mimetype:
+        mimetype = 'text/plain'
+      self.send_header( 'Content-Type', mimetype )
+      self.send_header( 'Content-Length', os.stat( real_path ).st_size )
+      self.end_headers( )
+      requested_file = open( real_path, 'r' )
+      self.wfile.write( requested_file.read( ))
+      requested_file.close( )
+      self.wfile.close( )
+      return
+
+    if os.path.isdir( real_path ):
+      # user requested a directory, list the files in it.
+      file_list = glob( real_path + '*' )
+      self.send_response( 200 )
+      self.end_headers( )
+      self.wfile.write( "<!DOCTYPE html><html><head></head><body>" )
+      self.wfile.write( "<h1>Index of %s</h1><br>" % path )
+      self.wfile.write( "<table cellpadding='3'><tbody>" )
+      self.wfile.write( 
+        "<tr><th>Name</th><th>Size</th><th>Type</th><th>Last Modified</th></tr>" )
+      if path != '/':
+        self.wfile.write( 
+          "<tr><td><a href='../'>Parent Directory</td><td colspan=3></td></tr>" )
+      # file size multipliers
+      multipliers = ( '%dB', '%dKB', '%dMB', '%dGB', '%sTB' )
+      for f in file_list:
+        relpath = os.path.relpath( f, real_path )
+        filetype = mimetypes.guess_type(real_path + f)[0]
+        if not filetype:
+          filetype = '-'
+        stats = os.stat( f )
+        # magnitude of the file size
+        size_mag = int(math.log( stats.st_size, 1024 )) if stats.st_size else 0
+        if os.path.isdir( f ):
+          relpath += '/'
+          filetype = 'directory'
+        self.wfile.write( 
+          "<tr><td><a href='%s'>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % 
+          ('/files' + path + relpath, relpath, 
+            multipliers[ size_mag ] % ( stats.st_size >> ( 10 * size_mag )),
+            filetype, ctime( stats.st_mtime ))
+        )
+      self.wfile.write( "</tbody></table>" )
+      self.wfile.write( "</body></html>" )
+      self.wfile.close( )
+      return
 
   def _send_post_response( self ):
     self.send_response( 200 )
@@ -460,12 +528,15 @@ optParser.add_option( "-f", "--form-path", dest="url", default="/",
 optParser.add_option( "-p", "--port",  dest="port", type="int", default=8000,
   help="Specify the port for the server to listen on" )
 optParser.add_option( "-u", "--upload-location", dest="upload_folder", 
-  default="/tmp", help="The location to store uploaded files" )
+  default="/tmp/uploads", help="The location to store uploaded files" )
 optParser.add_option( "-t", "--tmp-location", default="/tmp", dest="tmp_folder",
   help="The location to store temporary files for the progress feed, etc." )
 optParser.add_option( "--enable-progress", action="store_true", 
   dest="progress", default=False,
   help="Enable progress JSON feed for monitoring upload progress" )
+optParser.add_option( "--enable-download", action="store_true", 
+  dest="download", default=False,
+  help="Enable downloading of stored files" )
 optParser.add_option( "--session-key", dest="sessionkey", 
   default="UploadSession",
   help="The name of the cookie to be used for identifying users" )
