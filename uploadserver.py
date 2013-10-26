@@ -26,6 +26,7 @@ import string
 import mimetypes
 from glob import glob
 from time import ctime
+from email.utils import formatdate
 import math
 
 
@@ -128,6 +129,12 @@ class ForkingServer(ForkingMixIn, HTTPServer):
 class UploadHandler(BaseHTTPRequestHandler):
   upload_button = UPLOAD_BUTTON
   upload_file = UPLOAD_FILE
+
+  def do_HEAD( self ):
+    if OPTIONS.download:
+      if self.path.startswith( '/files/' ):
+        self._file_request( self.path[6:], True )
+        return
 
   def do_GET( self ):
     """
@@ -329,7 +336,7 @@ class UploadHandler(BaseHTTPRequestHandler):
         --></script>""" % ( self.progress_url ))
     self.wfile.write( "</body></html>" )
 
-  def _file_request( self, path='/' ):
+  def _file_request( self, path='/', head_only=False ):
     # user is requesting a file, send it.
     real_path = OPTIONS.upload_folder + path 
     if not os.path.exists( real_path ):
@@ -339,14 +346,17 @@ class UploadHandler(BaseHTTPRequestHandler):
     if os.path.isfile( real_path ):
       self.send_response( 200 )
       mimetype = mimetypes.guess_type( real_path )[0]
+      stats = os.stat( real_path )
       if not mimetype:
         mimetype = 'text/plain'
       self.send_header( 'Content-Type', mimetype )
-      self.send_header( 'Content-Length', os.stat( real_path ).st_size )
+      self.send_header( 'Content-Length', stats.st_size )
+      self.send_header( 'Last-Modified', formatdate( stats.st_mtime, usegmt=True ))
       self.end_headers( )
-      requested_file = open( real_path, 'r' )
-      self.wfile.write( requested_file.read( ))
-      requested_file.close( )
+      if not head_only:
+        requested_file = open( real_path, 'r' )
+        self.wfile.write( requested_file.read( ))
+        requested_file.close( )
       self.wfile.close( )
       return
 
@@ -355,35 +365,36 @@ class UploadHandler(BaseHTTPRequestHandler):
       file_list = glob( real_path + '*' )
       self.send_response( 200 )
       self.end_headers( )
-      self.wfile.write( "<!DOCTYPE html><html><head></head><body>" )
-      self.wfile.write( "<h1>Index of %s</h1><br>" % path )
-      self.wfile.write( "<table cellpadding='3'><tbody>" )
-      self.wfile.write( 
-        "<tr><th>Name</th><th>Size</th><th>Type</th><th>Last Modified</th></tr>" )
-      if path != '/':
+      if not head_only:
+        self.wfile.write( "<!DOCTYPE html><html><head></head><body>" )
+        self.wfile.write( "<h1>Index of %s</h1><br>" % path )
+        self.wfile.write( "<table cellpadding='3'><tbody>" )
         self.wfile.write( 
-          "<tr><td><a href='../'>Parent Directory</td><td colspan=3></td></tr>" )
-      # file size multipliers
-      multipliers = ( '%dB', '%dKB', '%dMB', '%dGB', '%sTB' )
-      for f in file_list:
-        relpath = os.path.relpath( f, real_path )
-        filetype = mimetypes.guess_type(real_path + f)[0]
-        if not filetype:
-          filetype = '-'
-        stats = os.stat( f )
-        # magnitude of the file size
-        size_mag = int(math.log( stats.st_size, 1024 )) if stats.st_size else 0
-        if os.path.isdir( f ):
-          relpath += '/'
-          filetype = 'directory'
-        self.wfile.write( 
-          "<tr><td><a href='%s'>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % 
-          ('/files' + path + relpath, relpath, 
-            multipliers[ size_mag ] % ( stats.st_size >> ( 10 * size_mag )),
-            filetype, ctime( stats.st_mtime ))
-        )
-      self.wfile.write( "</tbody></table>" )
-      self.wfile.write( "</body></html>" )
+          "<tr><th>Name</th><th>Size</th><th>Type</th><th>Last Modified</th></tr>" )
+        if path != '/':
+          self.wfile.write( 
+            "<tr><td><a href='../'>Parent Directory</td><td colspan=3></td></tr>" )
+        # file size multipliers
+        multipliers = ( '%dB', '%dKB', '%dMB', '%dGB', '%sTB' )
+        for f in file_list:
+          relpath = os.path.relpath( f, real_path )
+          filetype = mimetypes.guess_type(real_path + f)[0]
+          if not filetype:
+            filetype = '-'
+          stats = os.stat( f )
+          # magnitude of the file size
+          size_mag = int(math.log( stats.st_size, 1024 )) if stats.st_size else 0
+          if os.path.isdir( f ):
+            relpath += '/'
+            filetype = 'directory'
+          self.wfile.write( 
+            "<tr><td><a href='%s'>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % 
+            ('/files' + path + relpath, relpath, 
+              multipliers[ size_mag ] % ( stats.st_size >> ( 10 * size_mag )),
+              filetype, ctime( stats.st_mtime ))
+          )
+        self.wfile.write( "</tbody></table>" )
+        self.wfile.write( "</body></html>" )
       self.wfile.close( )
       return
 
