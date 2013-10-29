@@ -382,21 +382,32 @@ class UploadHandler(BaseHTTPRequestHandler):
           if not filetype:
             filetype = '-'
           stats = os.stat( f )
+          file_size = self._get_file_size( f )
           # magnitude of the file size
-          size_mag = int(math.log( stats.st_size, 1024 )) if stats.st_size else 0
+          size_mag = int(math.log( file_size, 1024 )) if file_size else 0
           if os.path.isdir( f ):
             relpath += '/'
             filetype = 'directory'
           self.wfile.write( 
             "<tr><td><a href='%s'>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % 
             ('/files' + path + relpath, relpath, 
-              multipliers[ size_mag ] % ( stats.st_size >> ( 10 * size_mag )),
+              multipliers[ size_mag ] % ( file_size >> ( 10 * size_mag )),
               filetype, ctime( stats.st_mtime ))
           )
         self.wfile.write( "</tbody></table>" )
         self.wfile.write( "</body></html>" )
       self.wfile.close( )
       return
+
+  def _get_file_size( self, real_path ):
+    if os.path.isdir( real_path ):
+      file_list = glob( real_path + '/*' )
+      dir_size = 0
+      for f in file_list:
+        dir_size += self._get_file_size( f )
+      return dir_size
+    else:
+      return os.stat( real_path ).st_size
 
   def _send_post_response( self ):
     self.send_response( 200 )
@@ -544,7 +555,7 @@ optParser.add_option( "-t", "--tmp-location", default="/tmp", dest="tmp_folder",
   help="The location to store temporary files for the progress feed, etc." )
 optParser.add_option( "--enable-progress", action="store_true", 
   dest="progress", default=False,
-  help="Enable progress JSON feed for monitoring upload progress" )
+  help="Enable JSON feed for monitoring upload progress" )
 optParser.add_option( "--enable-download", action="store_true", 
   dest="download", default=False,
   help="Enable downloading of stored files" )
