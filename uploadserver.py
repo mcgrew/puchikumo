@@ -489,7 +489,12 @@ def main( handler=UploadHandler ):
   OPTIONS.readbuf *= 1048576
   OPTIONS.writebuf *= 1048576
   httpd = ForkingServer(( OPTIONS.address, OPTIONS.port ), handler )
-  httpd.serve_forever( )
+  try:
+    httpd.serve_forever( )
+  except KeyboardInterrupt:
+    print
+    print "Shutting down..."
+    httpd.server_close()
 
 
 if __name__ == "__main__":
