@@ -18,7 +18,7 @@ case "$1" in
       opts="$opts --address=$ADDRESS"
     fi;
     if [ ! -z "$FORM_URL" ]; then
-      opts="$opts --form-path=$FORM_URL"
+      opts="$opts --form-url=$FORM_URL"
     fi;
     if [ ! -z "$READ_BUFFER" ]; then
       opts="$opts --read-buffer=$READ_BUFFER"
@@ -27,10 +27,10 @@ case "$1" in
       opts="$opts --write-buffer=$WRITE_BUFFER"
     fi;
     if [ ! -z "$UPLOAD_FOLDER" ]; then
-      opts="$opts --upload-location=$UPLOAD_FOLDER"
+      opts="$opts --upload-path=$UPLOAD_FOLDER"
     fi;
     if [ ! -z "$TMP_FOLDER" ]; then
-      opts="$opts --tmp-location=$TMP_FOLDER"
+      opts="$opts --tmp-path=$TMP_FOLDER"
     fi;
     if [ "$ENABLE_PROGRESS" == "True" ]; then
       opts="$opts --enable-progress"
@@ -40,6 +40,9 @@ case "$1" in
     fi;
     if [ ! -z "$SESSION_KEY" ]; then
       opts="$opts --session-key=$SESSION_KEY"
+    fi;
+    if [ ! -z "$CGI_PATH" ]; then
+      opts="$opts --cgi-path=$CGI_PATH"
     fi;
 		# RUN
 		${daemon_name} ${opts} > /dev/null  2>> /var/log/uploadserver.log &

@@ -29,6 +29,7 @@ from time import ctime
 from email.utils import formatdate
 import math
 from urllib import unquote_plus as unquote
+import subprocess
 
 
 VERSION = "0.3.0-pre"
@@ -87,7 +88,27 @@ class UploadHandler(BaseHTTPRequestHandler):
         # send the progres JSON feed
         self._progress( )
         return
+    if len(OPTIONS.cgi) and self.path.startswith('/_cgi_bin/'):
+      self._run_cgi(*self.path[10:].split('?', 1))
+      return
     self._send_get_response( )
+
+  def _run_cgi(self, path, args=""):
+    print path
+    executable = os.path.join(OPTIONS.cgi, path)
+    if not os.path.isfile(executable):
+      self.send_error(404)
+      return
+    if not os.access(executable, os.X_OK):
+      self.send_error(403)
+      return
+    cgi = subprocess.Popen([executable,], stdout=subprocess.PIPE,
+      env={'USER':'nobody', 'QUERY_STRING':args})
+    cgi.wait()
+    self.send_response(200)
+    self.wfile.write(cgi.stdout.read())
+    self.wfile.close()
+    
 
   def _progress( self ):
     if not OPTIONS.progress:
@@ -137,7 +158,7 @@ class UploadHandler(BaseHTTPRequestHandler):
           <input type="file" name="%s" multiple="true"/>
             <button id='upload' type="submit" name="%s" value="true">Upload file(s)</button>
           </form>
-      """ % (OPTIONS.url, self.upload_file, self.upload_button))
+      """ % (self.path, self.upload_file, self.upload_button))
 
   def _file_request( self, path='/', head_only=False ):
     # user is requesting a file, send it.
@@ -439,14 +460,14 @@ optParser.add_option( "--read-buffer", dest="readbuf", type="int", default=8,
   help="Specify the buffer size for post request (in KB)." )
 optParser.add_option( "--write-buffer", dest="writebuf", type="int", default=8,
   help="Specify the buffer size for post request (in KB)." )
-optParser.add_option( "-f", "--form-path", dest="url", default="/",
+optParser.add_option( "-f", "--form-url", dest="url", default="/",
   help="The path to the upload form on the server. Useful if the server is "
        "behind a proxy" )
 optParser.add_option( "-p", "--port",  dest="port", type="int", default=8000,
   help="Specify the port for the server to listen on" )
-optParser.add_option( "-u", "--upload-location", dest="upload_folder", 
+optParser.add_option( "-u", "--upload-path", dest="upload_folder", 
   default="/tmp/uploads", help="The location to store uploaded files" )
-optParser.add_option( "-t", "--tmp-location", default="/tmp", dest="tmp_folder",
+optParser.add_option( "-t", "--tmp-path", default="/tmp", dest="tmp_folder",
   help="The location to store temporary files for the progress feed, etc." )
 optParser.add_option( "--enable-progress", action="store_true", 
   dest="progress", default=False,
@@ -457,6 +478,8 @@ optParser.add_option( "--enable-download", action="store_true",
 optParser.add_option( "--session-key", dest="sessionkey", 
   default="UploadSession",
   help="The name of the cookie to be used for identifying users" )
+optParser.add_option( "--cgi-path", dest="cgi", default="",
+  help="The path for cgi executables. By default cgi is disabled." )
 
 def main( handler=UploadHandler ):
   global OPTIONS
