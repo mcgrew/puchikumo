@@ -31,13 +31,33 @@ import math
 from urllib import unquote_plus as unquote
 import subprocess
 
+# stuff for ssl support
+from SocketServer import BaseServer
+import ssl
+import socket
+
 
 VERSION = "0.3.0-pre"
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
 
 class ForkingServer(ForkingMixIn, HTTPServer):
-  pass
+  def __init__(self, address, handler):
+    HTTPServer.__init__(self, address, handler)
+    if (OPTIONS.certfile):
+      cert = OPTIONS.certfile
+      if (OPTIONS.keyfile):
+        key = OPTIONS.keyfile
+      else:
+        key = OPTIONS.certfile
+      BaseServer.__init__(self, address, handler)
+      self.socket = ssl.SSLSocket(
+        socket.socket(self.address_family,self.socket_type),
+        keyfile = key,
+        certfile = cert
+      )
+      self.server_bind()
+      self.server_activate()
 
 class UploadHandler(BaseHTTPRequestHandler):
   upload_button = UPLOAD_BUTTON
@@ -220,15 +240,18 @@ class UploadHandler(BaseHTTPRequestHandler):
           filetype = '-'
         stats = os.stat( f )
         file_size = self._get_file_size( f )
-        # magnitude of the file size
-        size_mag = int(math.log( file_size, 1024 )) if file_size else 0
+        if (file_size > 0):
+          # magnitude of the file size
+          size_mag = int(math.log( file_size, 1024 )) if file_size else 0
+          filesize_label = multipliers[size_mag] % (file_size >> (10 * size_mag))
+        else:
+          filesize_label = ''
         if os.path.isdir( f ):
           relpath += '/'
           filetype = 'directory'
         self.wfile.write( 
           "<tr><td><a href='%s'>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % 
-          ('/' + relpath, relpath, 
-            multipliers[ size_mag ] % ( file_size >> ( 10 * size_mag )),
+          ('/' + relpath, relpath, filesize_label,
             filetype, ctime( stats.st_mtime ))
         )
       self.wfile.write( "</tbody></table>" )
@@ -238,14 +261,17 @@ class UploadHandler(BaseHTTPRequestHandler):
       return
 
   def _get_file_size( self, path ):
-    if os.path.isdir( path ):
-      file_list = glob( path + '/*' )
-      dir_size = 0
-      for f in file_list:
-        dir_size += self._get_file_size( f )
-      return dir_size
-    else:
-      return os.stat( path ).st_size
+    try:
+      if os.path.isdir( path ):
+        file_list = glob( path + '/*' )
+        dir_size = 0
+        for f in file_list:
+          dir_size += self._get_file_size( f )
+        return dir_size
+      else:
+        return os.stat( path ).st_size
+    except:
+      return 0
 
   def _init_progress( self ):
     """
@@ -480,6 +506,10 @@ optParser.add_option( "--session-key", dest="sessionkey",
   help="The name of the cookie to be used for identifying users" )
 optParser.add_option( "--cgi-path", dest="cgi", default="",
   help="The path for cgi executables. By default cgi is disabled." )
+optParser.add_option( "--ssl-cert", dest="certfile", default="",
+  help="The path for ssl certificate file. By default ssl is disabled." )
+optParser.add_option( "--ssl-key", dest="keyfile", default="",
+  help="The path for ssl key file. By default ssl is disabled." )
 
 def main( handler=UploadHandler ):
   global OPTIONS
