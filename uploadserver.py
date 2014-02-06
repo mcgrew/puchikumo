@@ -223,7 +223,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     if not head_only:
       self.wfile.write( "<!DOCTYPE html><html><head></head><body>" )
       relpath = os.path.relpath(path, OPTIONS.upload_folder)
-      relpath = '/' if relpath == '.'else '/'+relpath 
+      relpath = '/' if relpath == '.' else '/'+relpath 
       self.wfile.write("<h1>Directory listing for %s</h1><br>" % relpath)
       self.wfile.write( "<table cellpadding='3'><tbody>" )
       self.wfile.write( 
@@ -251,7 +251,7 @@ class UploadHandler(BaseHTTPRequestHandler):
           filetype = 'directory'
         self.wfile.write( 
           "<tr><td><a href='%s'>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % 
-          ('/' + relpath, relpath, filesize_label,
+          (relpath, relpath, filesize_label,
             filetype, ctime( stats.st_mtime ))
         )
       self.wfile.write( "</tbody></table>" )
