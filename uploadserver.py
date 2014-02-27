@@ -30,6 +30,8 @@ from email.utils import formatdate
 import math
 from urllib import unquote_plus as unquote
 import subprocess
+from time import sleep
+from collections import defaultdict
 
 # stuff for ssl support
 from SocketServer import BaseServer
@@ -37,7 +39,7 @@ import ssl
 import socket
 
 
-VERSION = "0.3.0-rc1"
+VERSION = "0.3.0-rc2"
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
 
@@ -92,12 +94,27 @@ class UploadHandler(BaseHTTPRequestHandler):
       self.cookies = dict( )
     return self.cookies
 
+  def _read_get_data( self ):
+    self.getdict = defaultdict(bool)
+    vars = self.path.split('?', 1)
+    if len(vars) == 2:
+      self.path = vars[0]
+      self.query_string = vars[1]
+      vars = vars[1].split('&')
+      for var in vars:
+        if '=' in var:
+          thisvar = var.split('=', 1)
+          self.getdict[thisvar[0]] = thisvar[1]
+        else:
+          self.getdict[var] = True
+
   def do_GET( self ):
     """
     Listens for a GET request and returns an upload form
     """
     self.rfile._sock.settimeout( 30 )
     self._parse_cookies( )
+    self._read_get_data( )
     self._preprocess_get( )
     self.progress_url = OPTIONS.url
     if self.progress_url.endswith( '/' ):
@@ -109,12 +126,11 @@ class UploadHandler(BaseHTTPRequestHandler):
         self._progress( )
         return
     if len(OPTIONS.cgi) and self.path.startswith('/_cgi_bin/'):
-      self._run_cgi(*self.path[10:].split('?', 1))
+      self._run_cgi(self.path[10:], self.query_string)
       return
     self._send_get_response( )
 
   def _run_cgi(self, path, args=""):
-    print path
     executable = os.path.join(OPTIONS.cgi, path)
     if not os.path.isfile(executable):
       self.send_error(404)
@@ -122,11 +138,17 @@ class UploadHandler(BaseHTTPRequestHandler):
     if not os.access(executable, os.X_OK):
       self.send_error(403)
       return
-    cgi = subprocess.Popen([executable,], stdout=subprocess.PIPE,
-      env={'USER':'nobody', 'QUERY_STRING':args})
-    cgi.wait()
+    cgi_env = dict(os.environ)
+    cgi_env['QUERY_STRING'] = args
+    print "Executing " + executable + " with query string " + args
+    cgi = subprocess.Popen([executable,], stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+      env=cgi_env)
     self.send_response(200)
+    while cgi.poll() is None:
+      sleep(0.1)
+      self.wfile.write(cgi.stdout.read())
     self.wfile.write(cgi.stdout.read())
+    print cgi.stderr.read()
     self.wfile.close()
     
 
@@ -172,13 +194,16 @@ class UploadHandler(BaseHTTPRequestHandler):
       self.wfile.write( "</body></html>" )
 
   def _upload_form(self):
+    path = self.path
+    if self.getdict['next']:
+      path += '?next=' + self.getdict['next']
     self.wfile.write( """
           <form method="post" name="fileUpload" action="%s" 
           enctype="multipart/form-data">
           <input type="file" name="%s" multiple="true"/>
             <button id='upload' type="submit" name="%s" value="true">Upload file(s)</button>
           </form>
-      """ % (self.path, self.upload_file, self.upload_button))
+      """ % (path, self.upload_file, self.upload_button))
 
   def _file_request( self, path='/', head_only=False ):
     # user is requesting a file, send it.
@@ -315,6 +340,7 @@ class UploadHandler(BaseHTTPRequestHandler):
       self.content_length += 0x100000000
     self.remaining_content = self.content_length
     self._parse_cookies( )
+    self._read_get_data( )
     self.upload_folder = OPTIONS.upload_folder
     if OPTIONS.progress:
       self._start_session( )
@@ -339,7 +365,8 @@ class UploadHandler(BaseHTTPRequestHandler):
     # read the post request
     self.readbuf = None
     self.writebuf = StringIO( )
-    self.postdict = { 'files': [] }
+    self.postdict = defaultdict(bool)
+    self.postdict['files'] = []
     while True:
       name, value_buffer = self._parse_post_item( token )
       if not value_buffer:
@@ -383,7 +410,20 @@ class UploadHandler(BaseHTTPRequestHandler):
     """
     pass
 
+  def _redirect( self, where ):
+    self.send_response( 301 )
+    if not where.startswith('http://') and not where.startswith('https://'):
+      if OPTIONS.keyfile and OPTIONS.certfile:
+        where = 'https://' + self.headers['Host'] + where
+      else:
+        where = 'http://' + self.headers['Host'] + where
+    self.send_header( 'Location', where )
+    self.end_headers( )
+    self.wfile.close( )
+
   def _send_post_response( self ):
+    if self.getdict['next']:
+      return self._redirect(self.getdict['next'])
     self.send_response( 200 )
     if OPTIONS.progress:
       self._start_session( )
@@ -411,8 +451,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     name = None
     filename = None
     line = self._next_line( )
-    nameheader = re.search( 
-      'Content-Disposition: form-data; name="(.*?)"', line )
+    nameheader = re.search('Content-Disposition: form-data; name="(.*?)"', line)
     if nameheader:
       name = nameheader.group(1)
     fileheader = re.search( 'filename="(.*?)"', line )
