@@ -44,6 +44,15 @@ case "$1" in
     if [ ! -z "$CGI_PATH" ]; then
       opts="$opts --cgi-path=$CGI_PATH"
     fi;
+    if [ "$ENABLE_DOWNLOAD" == "True" ]; then
+      opts="$opts --enable-download"
+    fi;
+    if [ ! -z "$SSL_CERT" ]; then
+      opts="$opts --ssl-cert=$SSL_CERT"
+    fi;
+    if [ ! -z "$SSL_KEY" ]; then
+      opts="$opts --ssl-key=$SSL_KEY"
+    fi;
 		# RUN
 		${daemon_name} ${opts} > /dev/null  2>> /var/log/uploadserver.log &
     PID=$!

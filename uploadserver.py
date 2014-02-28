@@ -39,7 +39,7 @@ import ssl
 import socket
 
 
-VERSION = "0.3.0-rc2"
+VERSION = "0.3.0-rc3"
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
 
@@ -116,10 +116,6 @@ class UploadHandler(BaseHTTPRequestHandler):
     self._parse_cookies( )
     self._read_get_data( )
     self._preprocess_get( )
-    self.progress_url = OPTIONS.url
-    if self.progress_url.endswith( '/' ):
-      self.progress_url = self.progress_url[ :-1 ]
-    self.progress_url += '/_progress'
     if OPTIONS.progress:
       if self.path == "/_progress": 
         # send the progres JSON feed
@@ -203,7 +199,7 @@ class UploadHandler(BaseHTTPRequestHandler):
           <input type="file" name="%s" multiple="true"/>
             <button id='upload' type="submit" name="%s" value="true">Upload file(s)</button>
           </form>
-      """ % (path, self.upload_file, self.upload_button))
+      """ % (OPTIONS.url + path, self.upload_file, self.upload_button))
 
   def _file_request( self, path='/', head_only=False ):
     # user is requesting a file, send it.
