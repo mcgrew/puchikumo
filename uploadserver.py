@@ -39,7 +39,7 @@ import ssl
 import socket
 
 
-VERSION = "0.3.0-rc3"
+VERSION = "0.3.0-rc4"
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
 
@@ -407,12 +407,20 @@ class UploadHandler(BaseHTTPRequestHandler):
     pass
 
   def _redirect( self, where ):
+    """
+    Redirects the user to the specified url. This may be a relative or absolute
+    url.
+    """
     self.send_response( 301 )
     if not where.startswith('http://') and not where.startswith('https://'):
-      if OPTIONS.keyfile and OPTIONS.certfile:
-        where = 'https://' + self.headers['Host'] + where
+      if self.headers.has_key('X-Forwarded-For'):
+        host = self.headers['X-Forwarded-For'].split(',')[0]
       else:
-        where = 'http://' + self.headers['Host'] + where
+        host = self.headers['Host']
+      if OPTIONS.keyfile and OPTIONS.certfile:
+        where = 'https://' + host + where
+      else:
+        where = 'http://' + host + where
     self.send_header( 'Location', where )
     self.end_headers( )
     self.wfile.close( )

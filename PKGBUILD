@@ -5,7 +5,7 @@
 
 # Maintainer: Your Name <youremail@domain.com>
 pkgname=uploadserver
-pkgver=0.3_rc3
+pkgver=0.3_rc4
 pkgrel=1
 epoch=
 pkgdesc=""
@@ -26,7 +26,7 @@ install=
 changelog=
 source=(uploadserver.py uploadserver uploadserver.conf)
 noextract=()
-md5sums=('2669b1669c7de4c1c152f96803cf507c'
+md5sums=('879ee9626881e92e5d9c1dab50a45f87'
          '377f9157f10b5f0394d156b11a3cf17c'
          '56b353bdc07ed5011f44799d2f3b8a7f')
 package() {
