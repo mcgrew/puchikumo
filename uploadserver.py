@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 """
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -39,7 +39,7 @@ import ssl
 import socket
 
 
-VERSION = "0.3.0-rc4"
+VERSION = "0.3.0-rc5"
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
 
@@ -161,8 +161,12 @@ class UploadHandler(BaseHTTPRequestHandler):
 
     self.send_response( 200 )
     self.send_header( 'Content-Type', 'application/json' )
-#    self.send_header( 'Content-Length', 
-#      int( os.stat( progressfilename ).st_size ))
+    self.send_header( 'Content-Length', 
+      int( os.stat( progressfilename ).st_size ))
+    # A futile attempt to stop caching in IE. Doesn't seem to work.
+    self.send_header("Expires", formatdate( 0, usegmt=True ))
+    self.send_header("Cache-Control", "max-age=0, no-cache, must-revalidate")
+    self.send_header("Pragma", "no-cache")
     self.end_headers( )
     progressfile = open( progressfilename, 'r' )
     self.wfile.write( progressfile.read( ))
