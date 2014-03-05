@@ -343,7 +343,7 @@ class UploadHandler(BaseHTTPRequestHandler):
         if os.path.isdir(f):
           relpath += '/'
           filetype = 'directory'
-        self.wfile.write 
+        self.wfile.write(
           "<tr><td><a href='%s'>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % 
           (relpath, relpath, filesize_label,
             filetype, ctime(stats.st_mtime))
