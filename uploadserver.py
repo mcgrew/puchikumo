@@ -39,7 +39,7 @@ import ssl
 import socket
 
 
-VERSION = "0.3.0-rc5"
+VERSION = "0.3.0-rc6"
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
 
@@ -95,6 +95,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     return self.cookies
 
   def _read_get_data( self ):
+    self.query_string = ""
     self.getdict = defaultdict(bool)
     vars = self.path.split('?', 1)
     if len(vars) == 2:
@@ -472,8 +473,9 @@ class UploadHandler(BaseHTTPRequestHandler):
       line = self._next_line( )
 
     if filename:
-      if not os.path.exists( self.upload_folder ):
-        os.makedirs( self.upload_folder )
+      uploadpath = '%s%s' % (self.upload_folder, self.path)
+      if not os.path.exists( uploadpath ):
+        os.makedirs(uploadpath) 
       value_buffer = open( '%s%s/%s' % ( self.upload_folder, self.path, filename), 'wb' )
     else:
       value_buffer = StringIO( )
