@@ -39,7 +39,7 @@ import ssl
 import socket
 
 
-VERSION = "0.3.0-rc6"
+VERSION = "0.3.0-rc7"
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
 
@@ -236,7 +236,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     """
     Sends the upload form to the client.
     """
-    path = self.path
+    path = OPTIONS.url + self.path
     if self.getdict['next']:
       path += '?next=' + self.getdict['next']
     self.wfile.write("""
@@ -245,7 +245,7 @@ class UploadHandler(BaseHTTPRequestHandler):
           <input type="file" name="%s" multiple="true"/>
             <button id='upload' type="submit" name="%s" value="true">Upload file(s)</button>
           </form>
-      """ % (OPTIONS.url + path, self.upload_file, self.upload_button))
+      """ % (path, self.upload_file, self.upload_button))
 
   def _file_request(self, path='/', head_only=False):
     """
@@ -627,7 +627,7 @@ optParser.add_option("--read-buffer", dest="readbuf", type="int", default=8,
   help="Specify the buffer size for post request (in KB).")
 optParser.add_option("--write-buffer", dest="writebuf", type="int", default=8,
   help="Specify the buffer size for post request (in KB).")
-optParser.add_option("-f", "--form-url", dest="url", default="/",
+optParser.add_option("-f", "--form-url", dest="url", default="",
   help="The path to the upload form on the server. Useful if the server is "
        "behind a proxy")
 optParser.add_option("-p", "--port",  dest="port", type="int", default=8000,
