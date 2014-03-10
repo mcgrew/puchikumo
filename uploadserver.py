@@ -39,7 +39,7 @@ import ssl
 import socket
 
 
-VERSION = "0.3.0-rc7"
+VERSION = "0.3.0"
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
 

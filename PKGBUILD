@@ -5,7 +5,7 @@
 
 # Maintainer: Your Name <youremail@domain.com>
 pkgname=uploadserver
-pkgver=0.3_rc4
+pkgver=0.3.0
 pkgrel=1
 epoch=
 pkgdesc=""
