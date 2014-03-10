@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python
 """
   This program is free software: you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -236,7 +236,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     """
     Sends the upload form to the client.
     """
-    path = OPTIONS.url + self.path
+    path = OPTIONS.url + (self.path[1:] if self.path[0]=='/' else self.path)
     if self.getdict['next']:
       path += '?next=' + self.getdict['next']
     self.wfile.write("""
@@ -627,7 +627,7 @@ optParser.add_option("--read-buffer", dest="readbuf", type="int", default=8,
   help="Specify the buffer size for post request (in KB).")
 optParser.add_option("--write-buffer", dest="writebuf", type="int", default=8,
   help="Specify the buffer size for post request (in KB).")
-optParser.add_option("-f", "--form-url", dest="url", default="",
+optParser.add_option("-f", "--form-url", dest="url", default="/",
   help="The path to the upload form on the server. Useful if the server is "
        "behind a proxy")
 optParser.add_option("-p", "--port",  dest="port", type="int", default=8000,
