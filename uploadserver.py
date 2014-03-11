@@ -28,7 +28,7 @@ from glob import glob
 from time import ctime
 from email.utils import formatdate
 import math
-from urllib import unquote_plus as unquote
+import urllib
 import subprocess
 from time import sleep
 from collections import defaultdict
@@ -39,7 +39,7 @@ import ssl
 import socket
 
 
-VERSION = "0.3.0"
+VERSION = "0.4.0-pre"
 UPLOAD_BUTTON = "uploadButton"
 UPLOAD_FILE = "upload"
 
@@ -142,6 +142,10 @@ class UploadHandler(BaseHTTPRequestHandler):
         # send the progres JSON feed
         self._progress()
         return
+    if self.path == "/_jquery": 
+      self._send_file(os.path.dirname(os.path.abspath(sys.argv[0])) + 
+          '/jquery-1.11.0.min.js')
+      return
     if len(OPTIONS.cgi) and self.path.startswith('/_cgi_bin/'):
       self._run_cgi(self.path[10:], self.query_string)
       return
@@ -258,7 +262,7 @@ class UploadHandler(BaseHTTPRequestHandler):
         Whether to send the file data or merely the header information.
     """
     # user is requesting a file, send it.
-    real_path = unquote(OPTIONS.upload_folder + '/' + path)
+    real_path = urllib.unquote_plus(OPTIONS.root + '/' + path)
     if not os.path.exists(real_path):
       self.send_error(404)
       if OPTIONS.progress:
@@ -315,16 +319,37 @@ class UploadHandler(BaseHTTPRequestHandler):
     file_list = glob(path + '/*')
     self.end_headers()
     if not head_only:
-      self.wfile.write("<!DOCTYPE html><html><head></head><body>")
-      relpath = os.path.relpath(path, OPTIONS.upload_folder)
+      self.wfile.write("<!DOCTYPE html><html><head>")
+      if OPTIONS.download:
+        self.wfile.write("<script type='text/javascript' src='%s'></script>" % 
+          (OPTIONS.url + '_jquery'))
+        self.wfile.write("""<script type='text/javascript'>
+          function deleteFile(file) {
+            $.ajax({
+              url: file,
+              type: 'delete'
+            }).done(function() {
+              console.log('hello')
+              window.location.reload();
+            });
+          }
+          </script>""")
+      self.wfile.write("</head><body>")
+      relpath = os.path.relpath(path, OPTIONS.root)
       relpath = '/' if relpath == '.' else '/'+relpath 
       self.wfile.write("<h1>Directory listing for %s</h1><br>" % relpath)
       self.wfile.write("<table cellpadding='3'><tbody>")
       self.wfile.write(
-        "<tr><th>Name</th><th>Size</th><th>Type</th><th>Last Modified</th></tr>")
+        "<tr><th>Name</th><th>Size</th><th>Type</th><th>Last Modified</th>")
+      if OPTIONS.delete:
+        self.wfile.write("<th></th>")
+      self.wfile.write("</tr>")
       if path != '/':
         self.wfile.write(
-          "<tr><td><a href='../'>Parent Directory</td><td colspan=3></td></tr>")
+          "<tr><td><a href='../'>Parent Directory</td><td colspan=3></td>")
+        if OPTIONS.delete:
+          self.wfile.write("<td></td>")
+        self.wfile.write("</tr>")
       # file size multipliers
       multipliers = ('%dB', '%dKB', '%dMB', '%dGB', '%sTB')
       for f in file_list:
@@ -344,10 +369,18 @@ class UploadHandler(BaseHTTPRequestHandler):
           relpath += '/'
           filetype = 'directory'
         self.wfile.write(
-          "<tr><td><a href='%s'>%s</td><td>%s</td><td>%s</td><td>%s</td></tr>" % 
+          "<tr><td><a href='%s'>%s</td><td>%s</td><td>%s</td><td>%s</td>" % 
           (relpath, relpath, filesize_label,
             filetype, ctime(stats.st_mtime))
         )
+        if OPTIONS.delete:
+          if filetype == 'directory':
+            self.wfile.write("<td></td>")
+          else:
+            self.wfile.write("<td><button type='submit' "
+              "onclick='deleteFile(\"%s\")'>Delete</button></td>" % 
+              (OPTIONS.url + relpath))
+        self.wfile.write("</tr>")
       self.wfile.write("</tbody></table>")
       self.wfile.write("<br><br>")
       self._upload_form()
@@ -420,7 +453,7 @@ class UploadHandler(BaseHTTPRequestHandler):
     self.remaining_content = self.content_length
     self._parse_cookies()
     self._read_get_data()
-    self.upload_folder = OPTIONS.upload_folder
+    self.root = OPTIONS.root
     if OPTIONS.progress:
       self._start_session()
       progressdir = os.sep.join([OPTIONS.tmp_folder, "progress"])
@@ -555,10 +588,10 @@ class UploadHandler(BaseHTTPRequestHandler):
       line = self._next_line()
 
     if filename:
-      uploadpath = '%s%s' % (self.upload_folder, self.path)
+      uploadpath = '%s%s' % (self.root, self.path)
       if not os.path.exists(uploadpath):
         os.makedirs(uploadpath) 
-      value_buffer = open('%s%s/%s' % (self.upload_folder, self.path, filename), 'wb')
+      value_buffer = open('%s%s/%s' % (self.root, self.path, filename), 'wb')
     else:
       value_buffer = StringIO()
     prev_line = False
@@ -620,6 +653,79 @@ class UploadHandler(BaseHTTPRequestHandler):
     """
     return self.remaining_content <= 0 and not self.readbuf
 
+  def do_PUT(self):
+    """
+    Responds to a PUT request
+    """
+    # This doesn't work yet. Just a shell of a method that prints the uploaded
+    # data to the console (log) for now.
+    print(self.rfile.read(int(self.headers['Content-Length'])))
+    self.send_response(500)
+    self.end_headers()
+    self.wfile.write('<html></body><h1>This operation is not yet supported</h1></body></html>')
+    self.wfile.close()
+
+  def do_DELETE(self):
+    """
+    Responds to a DELETE request
+    """
+    self.rfile._sock.settimeout(30)
+    self._parse_cookies()
+    self._read_get_data()
+    # remove any url encoding
+    self.path = urllib.unquote_plus(self.path)
+    requested_file = OPTIONS.root + self.path
+    if OPTIONS.delete:
+      if os.path.exists(requested_file):
+        try: 
+          os.remove(requested_file)
+        except:
+          self.send_error(403)
+          return
+        print "Deleted " + requested_file
+        self.send_response(200)
+        self.send_header('Content-Type', 'application/json')
+        self.end_headers()
+        self.wfile.write('{"message": "%s deleted"}' % self.path)
+        self.wfile.close()
+      else:
+        self.send_error(404)
+    else:
+      self.send_error(403)
+
+  def _request_basic_auth(self):
+    """
+    Requests basic http authentication from the user.
+    """
+    self.send_response(401)
+    self.send_header('WWW-Authenticate: Basic realm=""')
+    self.end_headers()
+    self.wfile.close()
+
+  def _request_digest_auth(self):
+    """
+    Requests digest http authentication from the user.
+    """
+    self.send_response(401)
+    # nonce and opaque should be hex strings
+    self.send_header(('WWW-Authenticate', 'Digest realm="testrealm@host.com",'
+                     'qop="auth,auth-int",nonce="%s",opaque="%s"') %
+                     (nonce, opaque))
+    self.end_headers()
+    self.wfile.close()
+
+  def _verify_basic_auth(self):
+    """
+    Verifies that the client has supplied the proper credentials
+    """
+    pass
+
+  def _verify_digest_auth(self):
+    """
+    Verifies that the client has supplied the proper credentials
+    """
+    pass
+
 optParser = OptionParser(version="%%prog %s" % VERSION, usage="%prog [options]")
 optParser.add_option("-a", "--address", dest="address", default="",
   help="The ip address for the server to listen on")
@@ -627,12 +733,12 @@ optParser.add_option("--read-buffer", dest="readbuf", type="int", default=8,
   help="Specify the buffer size for post request (in KB).")
 optParser.add_option("--write-buffer", dest="writebuf", type="int", default=8,
   help="Specify the buffer size for post request (in KB).")
-optParser.add_option("-f", "--form-url", dest="url", default="/",
+optParser.add_option("-b", "--base-url", dest="url", default="/",
   help="The path to the upload form on the server. Useful if the server is "
        "behind a proxy")
 optParser.add_option("-p", "--port",  dest="port", type="int", default=8000,
   help="Specify the port for the server to listen on")
-optParser.add_option("-u", "--upload-path", dest="upload_folder", 
+optParser.add_option("-r", "--root", dest="root", 
   default="/tmp/uploads", help="The location to store uploaded files")
 optParser.add_option("-t", "--tmp-path", default="/tmp", dest="tmp_folder",
   help="The location to store temporary files for the progress feed, etc.")
@@ -642,6 +748,9 @@ optParser.add_option("--enable-progress", action="store_true",
 optParser.add_option("--enable-download", action="store_true", 
   dest="download", default=False,
   help="Enable downloading of stored files")
+optParser.add_option("--enable-delete", action="store_true", 
+  dest="delete", default=False,
+  help="Enable deletion of stored files")
 optParser.add_option("--session-key", dest="sessionkey", 
   default="UploadSession",
   help="The name of the cookie to be used for identifying users")

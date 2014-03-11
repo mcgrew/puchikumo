@@ -18,7 +18,7 @@ case "$1" in
       opts="$opts --address=$ADDRESS"
     fi;
     if [ ! -z "$FORM_URL" ]; then
-      opts="$opts --form-url=$FORM_URL"
+      opts="$opts --base-url=$BASE_URL"
     fi;
     if [ ! -z "$READ_BUFFER" ]; then
       opts="$opts --read-buffer=$READ_BUFFER"
@@ -26,8 +26,8 @@ case "$1" in
     if [ ! -z "$WRITE_BUFFER" ]; then
       opts="$opts --write-buffer=$WRITE_BUFFER"
     fi;
-    if [ ! -z "$UPLOAD_FOLDER" ]; then
-      opts="$opts --upload-path=$UPLOAD_FOLDER"
+    if [ ! -z "$ROOT" ]; then
+      opts="$opts --upload-path=$ROOT"
     fi;
     if [ ! -z "$TMP_FOLDER" ]; then
       opts="$opts --tmp-path=$TMP_FOLDER"
